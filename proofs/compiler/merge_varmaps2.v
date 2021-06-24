@@ -162,11 +162,13 @@ Section CHECK.
 
   Definition check_lvs ii (D:Sv.t) (xs:lvals) := 
     foldM (fun x D => check_lv ii D x) D xs.
- 
-  Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) :=
+  
+  Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : ciexec Sv.t :=
     let: MkI ii ir := i in
-    Let D2 := check_ir sz ii D ir in
-    ok (add_extra_free_registers ii D2)
+    Let _ := 
+      assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
+         (ii, (Cerr_one_varmap "bad type for extra free register : Please report")) in
+    check_ir sz ii (add_extra_free_registers ii D) ir
 
   with check_ir sz ii D ir :=
     match ir with
@@ -195,14 +197,14 @@ Section CHECK.
           (ii, Cerr_one_varmap "alignment constraints error") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
-        Let _ := assert
+        Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_one_varmap "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (ii, Cerr_one_varmap "bad call dests") in
         let W := writefun_ra writefun fn in
-        check_lvs ii (Sv.union D W) xs
+        ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
       else cierror ii (Cerr_one_varmap "call to unknown function")
     end.
 
@@ -215,15 +217,17 @@ Section CHECK.
         [/\ check_c (check_i sz) D1 c = ok D',
             check_e ii D' e = ok tt,
             check_c (check_i sz) D' c' = ok D2,
-            Sv.Subset D D1 &
-            Sv.Subset D2 D1 ].
+            check_ir sz ii D1 (Cwhile aa c e c') = ok D' &
+            Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
     elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 [] he D2 h2.
-    case: (equivP idP (Sv.subset_spec _ _)) => cnd.
-    - by case => ?; subst D1; exists D, D2; split.
-    move => /ih{ih} [D4] [D3] [ h he' h' le le' ].
-    exists D4, D3; split => //; SvD.fsetdec.
+    case: (equivP idP (Sv.subset_spec _ _)) => d.
+    - case => ?; subst D1; exists D, D2; split => //; last by split.
+      by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.
+    move => /ih{ih} [D4] [D3]; rewrite /check_e => -[ h he' h' heq [le le'] ].
+    exists D4, D3; split => //; last by split; SvD.fsetdec.
+    by rewrite h /= he' /= h' /=; move /Sv.subset_spec: le' => ->.
   Qed.
 
   End CHECK_i.
@@ -235,23 +239,38 @@ Section CHECK.
 
   Let check_preserved_register fn W J name r :=
     Let _ := 
+      assert (vtype r == sword Uptr) (Ferr_fun fn (Cerr_one_varmap ("bad register type for " ++ name))) in
+    Let _ := 
       assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
     assert (~~Sv.mem r J) (Ferr_fun fn (Cerr_one_varmap ("the function depends on its " ++ name))).
 
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
-    Let D := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) Sv.empty fd.(f_body)) in
+    let DI := 
+      match sf_return_address (f_extra fd) with
+      | RAnone =>
+        match sf_save_stack (f_extra fd) with
+        | SavedStackReg r => Sv.add r (sv_of_flags rflags)
+        | _ => sv_of_flags rflags
+        end 
+    | RAreg ra => Sv.singleton ra
+    | RAstack _ => Sv.empty 
+    end in
+
+    Let D := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) DI fd.(f_body)) in
+    let params := set_of_var_i_seq Sv.empty fd.(f_params) in
+    let res := set_of_var_i_seq Sv.empty fd.(f_res) in
     Let _ := 
-      assert (disjoint D (set_of_var_i_seq Sv.empty fd.(f_res)))
+      assert (disjoint D res)
              (Ferr_fun fn (Cerr_one_varmap "not able to ensure equality of the result")) in
-    Let _ := assert (all (λ x : var_i, ~~ Sv.mem x magic_variables) fd.(f_params))
+    Let _ := assert (var.disjoint params magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
-    Let _ := assert (all (λ x : var_i, v_var x != vid (string_of_register RSP)) fd.(f_res))
+    Let _ := assert (~~ Sv.mem (vid (string_of_register RSP)) res)
                     (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let W := writefun fn in
-    let J := set_of_var_i_seq magic_variables fd.(f_params) in
+    let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in
     Let _  := 
       if sf_save_stack e is SavedStackReg r then 
@@ -273,6 +292,7 @@ Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_one_varmap "invalid wmap")) in
   Let _ := assert (p.(p_extra).(sp_rip) != string_of_register RSP) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
-  check_prog (get_wmap wmap).
+  Let _ := check_prog (get_wmap wmap) in
+  ok tt.
 
 End PROG.
