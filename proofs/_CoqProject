@@ -84,7 +84,6 @@ compiler/x86_linear_sem.v
 compiler/x86_linearization.v
 compiler/x86_linearization_proof.v
 compiler/x86_params.v
-compiler/x86_params_proof.v
 compiler/x86_sem.v
 compiler/x86_stack_alloc.v
 compiler/x86_stack_alloc_proof.v
