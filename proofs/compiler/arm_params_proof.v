@@ -58,6 +58,7 @@ Proof.
   rewrite /exec_sopn /=.
   move: he.
   t_xrbindP=> _ -> /= -> /=.
+  rewrite zero_extend_u.
   by rewrite hx.
 Qed.
 
@@ -115,13 +116,13 @@ Lemma arm_spec_lip_allocate_stack_frame ts sz :
   -> eval_instr lp i (of_estate s fn pc)
      = ok (of_estate s' fn pc.+1).
 Proof.
-  move=> /= Hvm.
+  move=> /= hvm.
   rewrite /eval_instr /=.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
-  rewrite Hvm /=.
+  rewrite hvm /=.
   rewrite pword_of_wordE.
-  by rewrite zero_extend_u.
+  by rewrite zero_extend_u zero_extend_wrepr.
 Qed.
 
 Lemma arm_spec_lip_free_stack_frame ts sz :
@@ -133,14 +134,14 @@ Lemma arm_spec_lip_free_stack_frame ts sz :
   -> eval_instr lp i (of_estate s fn pc)
      = ok (of_estate s' fn pc.+1).
 Proof.
-  move=> /= Hvm.
+  move=> /= hvm.
   rewrite /eval_instr /=.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
-  rewrite Hvm /=.
+  rewrite hvm /=.
   rewrite pword_of_wordE.
-  rewrite zero_extend_u.
-  by rewrite wrepr_opp.
+  rewrite wrepr_opp.
+  by rewrite zero_extend_u zero_extend_wrepr.
 Qed.
 
 Lemma arm_spec_lip_ensure_rsp_alignment ws ts' :
@@ -161,12 +162,13 @@ Lemma arm_spec_lip_ensure_rsp_alignment ws ts' :
         & wf_vm vm'
       ].
 Proof.
-  move=> /= Hvrsp Hwm1.
+  move=> /= hvrsp hwm1.
   rewrite /eval_instr /=.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /=.
-  rewrite Hvrsp /=.
-  rewrite zero_extend_u pword_of_wordE.
+  rewrite hvrsp /=.
+  rewrite zero_extend_u zero_extend_wrepr; last done.
+  rewrite pword_of_wordE.
   rewrite /with_vm /=.
   eexists; split=> //.
   + move=> x hin. rewrite !(@Fv.setP _ _ vrsp).
@@ -184,19 +186,16 @@ Lemma arm_spec_lip_lassign (s1 s2 : estate) x e ws ws' (w : word ws) (w' : word 
   -> eval_instr lp i (of_estate s1 fn pc)
      = ok (of_estate s2 fn pc.+1).
 Proof.
-  move=> /= Hsem_pexpr Htruncate_word Hwrite_lval.
+  move=> /= hsem htruncate hwrite.
   rewrite /eval_instr /=.
   rewrite /sem_sopn /=.
   rewrite to_estate_of_estate.
-  rewrite Hsem_pexpr /=.
+  case: ws w htruncate hwrite => /= w htruncate hwrite.
+  1,2,4,5,6: exact: TODO_ARM.
+  rewrite hsem {hsem} /=.
   rewrite /exec_sopn /=.
-  rewrite Htruncate_word /=.
-  case: ws w Htruncate_word Hwrite_lval =>
-    ws ble Hwrite_lval /=.
-  1-3: by rewrite Hwrite_lval /=.
-  - exact: TODO_ARM. (* x = (u64)e *)
-  - exact: TODO_ARM. (* x = (u128)e *)
-  - exact: TODO_ARM. (* x = (u256)e *)
+  rewrite htruncate {htruncate} /=.
+  all: by rewrite hwrite {hwrite} /=.
 Qed.
 
 End LINEARIZATION.
@@ -248,7 +247,7 @@ Lemma arm_lower_callP
      in
      psem.sem_call lprog ev scs mem f va scs' mem' vr.
 Proof.
-  exact: lower_callP.
+  exact: (lower_callP _ _ (fv := fv)). (* TODO_ARM: Why do we need to specify fv? *)
 Qed.
 
 Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
@@ -318,18 +317,17 @@ Proof.
   case: op => //.
   move=> [[]] //.
   move=> [] //.
-  move=> [ws [] [] [?|]] /andP [] //= le_ws_32 _.
+  move=> [] //.
+  move=> [ws [] [] [?|]] // _.
   rewrite /exec_sopn /=.
   t_xrbindP=> w w'.
   move=> hvx.
-  have [ws' [w'' [le_ws_ws' -> ->]]] := to_wordI hvx.
+  have [ws' [w'' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
   rewrite /sopn_sem /=.
   rewrite /drop_semi_nzcv /=.
-  rewrite /arm_MOV_semi /=.
-  rewrite /nzcvw_of_aluop /=.
-  t_xrbindP=> _ _ _ _ _ <- [<-] [<-] [<-] [<-] <-.
+  move=> [<-] <-.
   apply List.Forall2_cons; last done.
-  exact: word_uincl_zero_ext le_ws_ws'.
+  exact: word_uincl_zero_ext hws'.
 Qed.
 
 

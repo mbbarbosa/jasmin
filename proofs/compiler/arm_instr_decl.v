@@ -21,7 +21,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Record arith_opts :=
+Record arm_options :=
   {
     args_size : wsize;
     set_flags : bool;
@@ -29,16 +29,42 @@ Record arith_opts :=
     has_shift : option shift_kind;
   }.
 
-Definition arith_opts_beq (ao0 ao1: arith_opts) : bool :=
-  (set_flags ao0 == set_flags ao1)
-  && (is_conditional ao0 == is_conditional ao1)
-  && (has_shift ao0 == has_shift ao1).
+Definition arm_options_beq (ao0 ao1 : arm_options) : bool :=
+  [&& set_flags ao0 == set_flags ao1
+    , is_conditional ao0 == is_conditional ao1
+    & has_shift ao0 == has_shift ao1
+   ].
 
-Variant arm_op : Type :=
+Definition default_opts (ws : wsize) : arm_options :=
+  {|
+    args_size := ws;
+    set_flags := false;
+    is_conditional := false;
+    has_shift := None;
+  |}.
+
+Definition set_is_conditional (ao : arm_options) : arm_options :=
+  {|
+    args_size := args_size ao;
+    set_flags := set_flags ao;
+    is_conditional := true;
+    has_shift := has_shift ao;
+  |}.
+
+Definition unset_is_conditional (ao : arm_options) : arm_options :=
+  {|
+    args_size := args_size ao;
+    set_flags := set_flags ao;
+    is_conditional := false;
+    has_shift := has_shift ao;
+  |}.
+
+(* -------------------------------------------------------------------- *)
+
+Variant arm_mnemonic : Type :=
 (* Arithmetic *)
 | ADC                            (* Add with carry *)
-| ADD of arith_opts              (* Add without carry (register) *)
-| ADDI of arith_opts             (* Add without carry (immediate) *)
+| ADD                            (* Add without carry *)
 
 | SBC                            (* Subtract with carry *)
 | SUB                            (* Subtract without carry *)
@@ -63,8 +89,7 @@ Variant arm_op : Type :=
 | UXTH                           (* Unsigned extend halfword *)
 
 (* Logical *)
-| AND of arith_opts              (* Bitwise AND (register) *)
-| ANDI of arith_opts             (* Bitwise AND (immediate) *)
+| AND                            (* Bitwise AND *)
 | EOR                            (* Bitwise XOR *)
 | MVN                            (* Bitwise NOT *)
 | ORR                            (* Bitwise OR *)
@@ -80,10 +105,10 @@ Variant arm_op : Type :=
 
 (* Other data processing instructions *)
 | BIC                            (* Bitwise bit clear *)
-| MOV of arith_opts              (* Copy operand to destination *)
+| MOV                            (* Copy operand to destination *)
 
 (* Loads *)
-| LDR of bool                    (* Load a 32-bit word *)
+| LDR                            (* Load a 32-bit word *)
 | LDRH                           (* Load a 16-bit unsigned halfword *)
 | LDRSH                          (* Load a 16-bit signed halfword *)
 | LDRB                           (* Load a 8-bit unsigned byte *)
@@ -107,18 +132,17 @@ Variant arm_op : Type :=
                                     increment base after *)
 | STMDB                          (* Store multiple 32-bit words,
                                     decrement base before *)
-| PUSH                           (* Store multiple 32-bit words from the stack,
+| PUSH.                          (* Store multiple 32-bit words from the stack,
                                     decrement sp (defined in terms of STMDB) *)
 
-(* Other *)
-| IT.                            (* Make up to four following instructions
-                                    conditional *)
+Variant arm_op :=
+| ARM_op : arm_mnemonic -> arm_options -> arm_op.
 
-Definition arm_op_dec_eq (op0 op1: arm_op) : {op0 = op1} + {op0 <> op1}.
+Definition arm_op_dec_eq (op0 op1 : arm_op) : {op0 = op1} + {op0 <> op1}.
   by repeat decide equality.
-Defined.
+Qed.
 
-Definition arm_op_beq (op0 op1: arm_op) : bool :=
+Definition arm_op_beq (op0 op1 : arm_op) : bool :=
   if arm_op_dec_eq op0 op1 is left _
   then true
   else false.
@@ -126,7 +150,7 @@ Definition arm_op_beq (op0 op1: arm_op) : bool :=
 Lemma arm_op_eq_axiom : Equality.axiom arm_op_beq.
 Proof.
   move=> x y.
-  apply:(iffP idP);
+  apply: (iffP idP);
     last move=> <-;
     rewrite /arm_op_beq;
     by case: arm_op_dec_eq.
@@ -142,18 +166,17 @@ Instance eqTC_arm_op : eqTypeC arm_op :=
 (* -------------------------------------------------------------------- *)
 (* Common semantic types. *)
 
-Notation sregsz := (sword reg_size).
-Definition wregsz_ty := sem_tuple [:: sregsz ].
+Notation wreg_ty := (sem_tuple [:: sreg ]).
 
 (* Tuple for flag values: (NF, ZF, CF, VF). *)
 Notation sflag := (sbool) (only parsing).
 Notation sflags := ([:: sflag; sflag; sflag; sflag ]) (only parsing).
-Definition nzcv_ty := sem_tuple sflags.
+Notation nzcv_ty := (sem_tuple sflags) (only parsing).
 
-Definition flag_ty := sem_tuple [:: sflag ].
-Definition nzcvr_ty := sem_tuple (sflags ++ [:: sregsz ]).
+Notation flag_ty := (sem_tuple [:: sflag ]) (only parsing).
+Notation nzcvr_ty := (sem_tuple (sflags ++ [:: sreg ])) (only parsing).
 
-Definition nzcvw_ty sz := sem_tuple (sflags ++ [:: sword sz ]).
+Notation nzcvw_ty sz := (sem_tuple (sflags ++ [:: sword sz ])) (only parsing).
 
 
 (* -------------------------------------------------------------------- *)
@@ -166,6 +189,7 @@ Definition rflags_ad : seq arg_desc := map F rflags.
 (* Common argument kinds. *)
 
 Definition reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
+Definition reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimmZ ] ] ].
 Definition reg_reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
 Definition reg_reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimmZ  ] ] ].
 Definition reg_addr_ak := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
@@ -197,7 +221,7 @@ Definition nzcv_of_aluop
   ).
 
 Definition nzcvw_of_aluop (sz : wsize) (w : word sz) (wu ws : Z) :=
-  (merge_tuple (nzcv_of_aluop w wu ws) (w : sem_tuple [:: sword sz ])).
+  merge_tuple (nzcv_of_aluop w wu ws) (w : sem_tuple [:: sword sz ]).
 
 
 (* -------------------------------------------------------------------- *)
@@ -241,22 +265,23 @@ Proof.
 Qed.
 
 Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
-  {| id_msb_flag   := id_msb_flag idt
-  ;  id_tin        := id_tin idt
-  ;  id_in         := id_in idt
-  ;  id_tout       := behead4 (id_tout idt)
-  ;  id_out        := behead4 (id_out idt)
-  ;  id_semi       := drop_semi_nzcv (id_semi idt)
-  ;  id_nargs      := id_nargs idt
-  ;  id_args_kinds := id_args_kinds idt
-  ;  id_eq_size    := drop_nzcv_eq_size (id_eq_size idt)
-  ;  id_tin_narr   := id_tin_narr idt
-  ;  id_tout_narr  := drop_nzcv_tout_narr (id_tout_narr idt)
-  ;  id_check_dest := drop_nzcv_check_dest (id_check_dest idt)
-  ;  id_str_jas    := id_str_jas idt
-  ;  id_wsize      := id_wsize idt
-  ;  id_safe       := id_safe idt
-  ;  id_pp_asm     := id_pp_asm idt
+  {|
+    id_msb_flag := id_msb_flag idt;
+    id_tin := id_tin idt;
+    id_in := id_in idt;
+    id_tout := behead4 (id_tout idt);
+    id_out := behead4 (id_out idt);
+    id_semi := drop_semi_nzcv (id_semi idt);
+    id_nargs := id_nargs idt;
+    id_args_kinds := id_args_kinds idt;
+    id_eq_size := drop_nzcv_eq_size (id_eq_size idt);
+    id_tin_narr := id_tin_narr idt;
+    id_tout_narr := drop_nzcv_tout_narr (id_tout_narr idt);
+    id_check_dest := drop_nzcv_check_dest (id_check_dest idt);
+    id_str_jas := id_str_jas idt;
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
+    id_pp_asm := id_pp_asm idt;
   |}.
 Arguments drop_nzcv : clear implicits.
 
@@ -276,7 +301,7 @@ Arguments drop_nzcv : clear implicits.
 
 #[ local ]
 Lemma mk_cond_eq_size
-  {A B} {x y} {xs0 xs1: seq A} {ys0 ys1: seq B} :
+  {A B} {x y} {xs0 xs1 : seq A} {ys0 ys1 : seq B} :
   (size xs0 == size ys0) && (size xs1 == size ys1)
   -> (size (xs0 ++ x :: xs1) == size (ys0 ++ y :: ys1))
      && (size xs1 == size ys1).
@@ -287,7 +312,7 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma mk_cond_tin_narr {A} {p: A -> bool} {x} {xs ys: seq A} :
+Lemma mk_cond_tin_narr {A} {p : A -> bool} {x} {xs ys : seq A} :
   p x
   -> all p xs
   -> all p ys
@@ -301,38 +326,43 @@ Proof.
   by apply/andP.
 Qed.
 
-Definition mk_semi_cond tin tout (semi: sem_prod tin (exec (sem_tuple tout)))
+Definition mk_semi_cond tin tout (semi : sem_prod tin (exec (sem_tuple tout)))
   : sem_prod (tin ++ sbool :: tout) (exec (sem_tuple tout)) :=
   let f0 res cond : sem_prod tout (exec (sem_tuple tout)) :=
     if cond
-    then sem_prod_app (sem_prod_tuple tout) (@Ok _ _)
-    else sem_prod_const tout res in
+    then sem_prod_const tout res
+    else sem_prod_app (sem_prod_tuple tout) (@Ok _ _)
+  in
   let f1 : sem_prod tin (sem_prod (sbool :: tout) (exec (sem_tuple tout))) :=
-    sem_prod_app semi f0 in
+    sem_prod_app semi f0
+  in
   add_arguments f1.
 
-Definition mk_cond (idt: instr_desc_t) : instr_desc_t :=
-  {| id_msb_flag   := id_msb_flag idt
-  ;  id_tin        := (id_tin idt) ++ sbool :: (id_tout idt)
-  ;  id_in         := (id_in idt) ++ E (id_nargs idt) :: (id_out idt)
-  ;  id_tout       := id_tout idt
-  ;  id_out        := id_out idt
-  ;  id_semi       := mk_semi_cond (id_semi idt)
-  ;  id_nargs      := (id_nargs idt).+1
-  ;  id_args_kinds := map (fun x => x ++ [:: [:: CAcond ] ]) (id_args_kinds idt)
-  ;  id_eq_size    := mk_cond_eq_size (id_eq_size idt)
-  ;  id_tin_narr   := mk_cond_tin_narr
-                        (is_true_true: is_not_sarr sbool)
-                        (id_tin_narr idt)
-                        (id_tout_narr idt)
-  ; id_tout_narr   := id_tout_narr idt
-  ;  id_check_dest := id_check_dest idt
-  ;  id_str_jas    := id_str_jas idt
-  ;  id_wsize      := id_wsize idt
-  ;  id_safe       := id_safe idt
-  ;  id_pp_asm     := id_pp_asm idt
+Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
+  {|
+    id_msb_flag := id_msb_flag idt;
+    id_tin := (id_tin idt) ++ sbool :: (id_tout idt);
+    id_in := (id_in idt) ++ E (id_nargs idt) :: (id_out idt);
+    id_tout := id_tout idt;
+    id_out := id_out idt;
+    id_semi := mk_semi_cond (id_semi idt);
+    id_nargs := (id_nargs idt).+1;
+    id_args_kinds := map (fun x => x ++ [:: [:: CAcond ] ]) (id_args_kinds idt);
+    id_eq_size := mk_cond_eq_size (id_eq_size idt);
+    id_tin_narr :=
+      mk_cond_tin_narr
+        (is_true_true: is_not_sarr sbool)
+        (id_tin_narr idt)
+        (id_tout_narr idt);
+    id_tout_narr := id_tout_narr idt;
+    id_check_dest := id_check_dest idt;
+    id_str_jas := id_str_jas idt;
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
+    id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_cond : clear implicits.
+
 
 (* -------------------------------------------------------------------- *)
 (* Shift transformations.
@@ -341,20 +371,15 @@ Arguments mk_cond : clear implicits.
  * and updates the semantics and the rest of the fields accordingly.
  *)
 
-Definition mk_semi_shifted_reg_reg
-  {A} (sk: shift_kind) (semi: sem_prod [:: sregsz; sregsz ] A) :
-  sem_prod [:: sregsz; sregsz; sint ] A :=
+Definition mk_semi_shifted
+  {A} (sk : shift_kind) (semi : sem_prod [:: sreg; sreg ] (exec A)) :
+  sem_prod [:: sreg; sreg; sword8 ] (exec A) :=
   fun wn wm shift_amount =>
-    semi wn (shift_op sk wm shift_amount).
-
-Definition mk_semi_shifted_reg_imm
-  {A} (sk: shift_kind) (semi: sem_prod [:: sregsz; sint ] A) :
-  sem_prod [:: sregsz; sint; sint ] A :=
-  fun wn imm shift_amount =>
-    semi wn (shift_opZ sk imm shift_amount).
+    let sham := wunsigned shift_amount in
+    semi wn (shift_op sk wm sham).
 
 #[ local ]
-Lemma mk_shifted_eq_size {A B} {x y} {xs0: seq A} {ys0: seq B} {p} :
+Lemma mk_shifted_eq_size {A B} {x y} {xs0 : seq A} {ys0 : seq B} {p} :
   (size xs0 == size ys0) && p
   -> (size (xs0 ++ [:: x ]) == size (ys0 ++ [:: y ])) && p.
 Proof.
@@ -363,7 +388,8 @@ Proof.
   by apply/andP.
 Qed.
 
-Lemma mk_shifted_tin_narr {A} {p: A -> bool} {x} {xs: seq A} :
+#[ local ]
+Lemma mk_shifted_tin_narr {A} {p : A -> bool} {x} {xs : seq A} :
   p x
   -> all p xs
   -> all p (xs ++ [:: x ]).
@@ -374,26 +400,28 @@ Proof.
   by apply/andP.
 Qed.
 
-Definition mk_shifted (sk: shift_kind) (idt: instr_desc_t) semi' :
+Definition mk_shifted (sk : shift_kind) (idt : instr_desc_t) semi' :
   instr_desc_t :=
-  {| id_msb_flag   := id_msb_flag idt
-  ;  id_tin        := (id_tin idt) ++ [:: sint ]
-  ;  id_in         := (id_in idt) ++ [:: E (id_nargs idt) ]
-  ;  id_tout       := id_tout idt
-  ;  id_out        := id_out idt
-  ;  id_semi       := semi'
-  ;  id_nargs      := (id_nargs idt).+1
-  ;  id_args_kinds := map (fun x => x ++ [:: [:: CAimmZ ] ]) (id_args_kinds idt)
-  ;  id_eq_size    := mk_shifted_eq_size (id_eq_size idt)
-  ;  id_tin_narr   := mk_shifted_tin_narr
-                        (is_true_true: is_not_sarr sint)
-                        (id_tin_narr idt)
-  ;  id_tout_narr  := id_tout_narr idt
-  ;  id_check_dest := id_check_dest idt
-  ;  id_str_jas    := id_str_jas idt
-  ;  id_wsize      := id_wsize idt
-  ;  id_safe       := id_safe idt
-  ;  id_pp_asm     := id_pp_asm idt
+  {|
+    id_msb_flag := id_msb_flag idt;
+    id_tin := (id_tin idt) ++ [:: sword8 ];
+    id_in := (id_in idt) ++ [:: E (id_nargs idt) ];
+    id_tout := id_tout idt;
+    id_out := id_out idt;
+    id_semi := semi';
+    id_nargs := (id_nargs idt).+1;
+    id_args_kinds := map (fun x => x ++ [:: [:: CAimmZ ] ]) (id_args_kinds idt);
+    id_eq_size := mk_shifted_eq_size (id_eq_size idt);
+    id_tin_narr :=
+      mk_shifted_tin_narr
+        (is_true_true: is_not_sarr sword8)
+        (id_tin_narr idt);
+    id_tout_narr := id_tout_narr idt;
+    id_check_dest := id_check_dest idt;
+    id_str_jas := id_str_jas idt;
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
+    id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_shifted : clear implicits.
 
@@ -401,84 +429,52 @@ Arguments mk_shifted : clear implicits.
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
 
-Definition arm_ADD_semi
-  (wn wm: wregsz_ty)
-  : exec nzcvr_ty :=
-  ok (nzcvw_of_aluop
-        (wn + wm)
-        (wunsigned wn + wunsigned wm)%Z
-        (wsigned wn + wsigned wm)%Z).
+Section ARM_INSTR.
 
-Definition arm_ADD_instr (opts: arith_opts) : instr_desc_t :=
+Context
+  (opts : arm_options).
+
+Definition arm_ADD_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
+  let res :=
+    nzcvw_of_aluop
+      (wn + wm)
+      (wunsigned wn + wunsigned wm)%Z
+      (wsigned wn + wsigned wm)%Z
+  in
+  ok res.
+
+Definition arm_ADD_instr : instr_desc_t :=
   let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sregsz; sregsz ]
-       ; id_in         := [:: E 1; E 2 ]
-       ; id_tout       := sflags ++ [:: sregsz ]
-       ; id_out        := rflags_ad ++ [:: E 0 ]
-       ; id_semi       := arm_ADD_semi
-       ; id_nargs      := 3
-       ; id_args_kinds := reg_reg_reg_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-      |} in
-  let x := if has_shift opts is Some sk
-           then mk_shifted sk x (mk_semi_shifted_reg_reg sk (id_semi x))
-           else x in
-  let x := if set_flags opts
-           then x
-           else drop_nzcv x in
-  if is_conditional opts
-  then mk_cond x
-  (* CHECK: (id_tout x) is opaque here. We could have lemmas
-   * stating that the output of set_flags has this property.
-   *)
-  else x.
-
-Definition arm_ADDI_semi
-  (wn: wregsz_ty)
-  (imm: Z)
-  : exec nzcvr_ty :=
-  let wm := wrepr reg_size imm in
-  ok (nzcvw_of_aluop
-        (wn + wm)
-        (wunsigned wn + wunsigned wm)%Z
-        (wsigned wn + wsigned wm)%Z).
-
-Definition arm_ADDI_instr (opts: arith_opts) : instr_desc_t :=
+    {|
+      id_msb_flag := TODO_ARM;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := sflags ++ [:: sreg ];
+      id_out := rflags_ad ++ [:: E 0 ];
+      id_semi := arm_ADD_semi;
+      id_nargs := 3;
+      id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := TODO_ARM;
+      id_wsize := TODO_ARM;
+      id_safe := TODO_ARM;
+      id_pp_asm := TODO_ARM;
+    |}
+  in
   let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sregsz; sint ]
-       ; id_in         := [:: E 1; E 2 ]
-       ; id_tout       := sflags ++ [:: sregsz ]
-       ; id_out        := rflags_ad ++ [:: E 0 ]
-       ; id_semi       := arm_ADDI_semi
-       ; id_nargs      := 3
-       ; id_args_kinds := reg_reg_imm_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-      |} in
-  let x := if set_flags opts
-           then x
-           else drop_nzcv x in
-  if is_conditional opts
-  then mk_cond x
-  else x.
+    if has_shift opts is Some sk
+    then mk_shifted sk x (mk_semi_shifted sk (id_semi x))
+    else x
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
 
 Definition arm_AND_semi
-  (wn wm : wregsz_ty)
+  (wn wm : wreg_ty)
   : exec nzcvr_ty :=
   let res := wand wn wm in
   ok (:: Some (NF_of_word res)
@@ -488,148 +484,158 @@ Definition arm_AND_semi
        & res
      ).
 
-Definition arm_AND_instr (opts: arith_opts) : instr_desc_t :=
+Definition arm_AND_instr : instr_desc_t :=
   let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sregsz; sregsz ]
-       ; id_in         := [:: E 1; E 2 ]
-       ; id_tout       := sflags ++ [:: sregsz ] (* FIXME: Does not set V. *)
-       ; id_out        := rflags_ad ++ [:: E 0 ] (* FIXME: Does not set V. *)
-       ; id_semi       := arm_AND_semi
-       ; id_nargs      := 3
-       ; id_args_kinds := reg_reg_reg_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-      |} in
-  let x := if has_shift opts is Some sk
-           then mk_shifted sk x (mk_semi_shifted_reg_reg sk (id_semi x))
-           else x in
-  let x := if set_flags opts
-           then x
-           else drop_nzcv x in
-  if is_conditional opts
-  then mk_cond x
-  else x.
-
-Definition arm_ANDI_semi
-  (wn : wregsz_ty)
-  (imm : Z)
-  : exec nzcvr_ty :=
-  let wm := wrepr reg_size imm in
-  let res := wand wn wm in
-  ok (:: Some (NF_of_word res)
-       , Some (ZF_of_word res)
-       , TODO_ARM (* FIXME: C depends on the value of imm. *)
-       , TODO_ARM (* FIXME: V should be unchanged. *)
-       & res
-     ).
-
-Definition arm_ANDI_instr (opts: arith_opts) : instr_desc_t :=
+    {|
+      id_msb_flag := TODO_ARM;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := sflags ++ [:: sreg ]; (* FIXME: Does not set V. *)
+      id_out := rflags_ad ++ [:: E 0 ]; (* FIXME: Does not set V. *)
+      id_semi := arm_AND_semi;
+      id_nargs := 3;
+      id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := TODO_ARM;
+      id_wsize := TODO_ARM;
+      id_safe := TODO_ARM;
+      id_pp_asm := TODO_ARM;
+    |}
+  in
   let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sregsz; sint ]
-       ; id_in         := [:: E 1; E 2 ]
-       ; id_tout       := sflags ++ [:: sregsz ]
-       ; id_out        := rflags_ad ++ [:: E 0 ]
-       ; id_semi       := arm_ANDI_semi
-       ; id_nargs      := 3
-       ; id_args_kinds := reg_reg_imm_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-      |} in
-  let x := if set_flags opts
-           then x
-           else drop_nzcv x in
-  if is_conditional opts
-  then mk_cond x
-  else x.
+    if has_shift opts is Some sk
+    then mk_shifted sk x (mk_semi_shifted sk (id_semi x))
+    else x
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
 
-Definition arm_MOV_semi
-  {sz} (wn : word sz) : exec (sem_tuple (sflags ++ [:: sword sz ])) :=
-  Let: _ := check_size_8_32 sz in
+Definition arm_MOV_semi {sz : wsize} (wn : word sz) :
+  exec (sem_tuple (sflags ++ [:: sword sz ])) :=
   ok (nzcvw_of_aluop wn (wunsigned wn) (wsigned wn)).
 
-Definition arm_MOV_instr (opts : arith_opts) : instr_desc_t :=
+Definition arm_MOV_instr : instr_desc_t :=
   let sz := args_size opts in
   let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sword sz ]
-       ; id_in         := [:: E 1 ]
-       ; id_tout       := sflags ++ [:: sword sz ]
-       ; id_out        := rflags_ad ++ [:: E 0 ]
-       ; id_semi       := arm_MOV_semi (sz := sz)
-       ; id_nargs      := 2
-       ; id_args_kinds := reg_reg_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-    |} in
-  let x := if set_flags opts
-           then x
-           else drop_nzcv x in
+    {|
+      id_msb_flag := TODO_ARM;
+      id_tin := [:: sword sz ];
+      id_in := [:: E 1 ];
+      id_tout := sflags ++ [:: sword sz ];
+      id_out := rflags_ad ++ [:: E 0 ];
+      id_semi := arm_MOV_semi;
+      id_nargs := 2;
+      id_args_kinds := reg_reg_ak ++ reg_imm_ak;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := TODO_ARM;
+      id_wsize := TODO_ARM;
+      id_safe := TODO_ARM;
+      id_pp_asm := TODO_ARM;
+    |}
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
+
+Definition arm_LDR_semi (wn : wreg_ty) : exec wreg_ty :=
+  ok wn.
+
+Definition arm_LDR_instr (_ : arm_options) : instr_desc_t :=
+  {|
+    id_msb_flag := TODO_ARM;
+    id_tin := [:: sreg ];
+    id_in := [:: E 1 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_LDR_semi;
+    id_nargs := 2;
+    id_args_kinds := reg_addr_ak;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := TODO_ARM;
+    id_wsize := TODO_ARM;
+    id_safe := TODO_ARM;
+    id_pp_asm := TODO_ARM;
+  |}.
+
+Definition arm_STR_semi (wn : wreg_ty) : exec wreg_ty :=
+  ok wn.
+
+Definition arm_STR_instr (_ : arm_options) : instr_desc_t :=
+  {|
+    id_msb_flag := TODO_ARM;
+    id_tin := [:: sreg ];
+    id_in := [:: E 1 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_STR_semi;
+    id_nargs := 2;
+    id_args_kinds := reg_addr_ak;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := TODO_ARM;
+    id_wsize := TODO_ARM;
+    id_safe := TODO_ARM;
+    id_pp_asm := TODO_ARM;
+  |}.
+
+
+End ARM_INSTR.
+
+Definition mn_desc (mn : arm_mnemonic) : arm_options -> instr_desc_t :=
+  match mn with
+  | ADD => arm_ADD_instr
+  | AND => arm_AND_instr
+  | MOV => arm_MOV_instr
+  | LDR => arm_LDR_instr
+  | STR => arm_STR_instr
+  | _ => TODO_ARM
+  end.
+
+(* Description of instructions. *)
+Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
+  let '(ARM_op mn opts) := o in
+  let x := mn_desc mn opts in
   if is_conditional opts
   then mk_cond x
   else x.
-
-Definition arm_LDR_semi (wn : wregsz_ty) : exec wregsz_ty :=
-  ok wn.
-
-Definition arm_LDR_instr (is_conditional : bool) : instr_desc_t :=
-  let x :=
-      {| id_msb_flag   := TODO_ARM
-       ; id_tin        := [:: sregsz ]
-       ; id_in         := [:: E 1 ]
-       ; id_tout       := [:: sregsz ]
-       ; id_out        := [:: E 0 ]
-       ; id_semi       := arm_LDR_semi
-       ; id_nargs      := 2
-       ; id_args_kinds := reg_addr_ak
-       ; id_eq_size    := refl_equal
-       ; id_tin_narr   := refl_equal
-       ; id_tout_narr  := refl_equal
-       ; id_check_dest := refl_equal
-       ; id_str_jas    := TODO_ARM
-       ; id_wsize      := TODO_ARM
-       ; id_safe       := TODO_ARM
-       ; id_pp_asm     := TODO_ARM
-    |} in
-  if is_conditional
-  then mk_cond x
-  else x.
-
-(* Description of instructions. *)
-Definition arm_instr_desc (o: arm_op) : instr_desc_t :=
-  match o with
-  | ADD opts  => arm_ADD_instr opts
-  | ADDI opts => arm_ADDI_instr opts
-  | AND opts  => arm_AND_instr opts
-  | ANDI opts => arm_ANDI_instr opts
-  | MOV opts  => arm_MOV_instr opts
-  | LDR c     => arm_LDR_instr c
-  | _         => TODO_ARM
-  end.
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
   TODO_ARM.
 
 Instance arm_op_decl : asm_op_decl arm_op :=
-  { instr_desc_op := arm_instr_desc
-  ; prim_string   := arm_prim_string
-  }.
+  {|
+    instr_desc_op := arm_instr_desc;
+    prim_string := arm_prim_string;
+  |}.
+
+Definition load_op_of_wsize (ws : wsize) : option arm_mnemonic :=
+  match ws with
+  | U8 => Some TODO_ARM
+  | U16 => Some TODO_ARM
+  | U32 => Some LDR
+  | U64 => Some TODO_ARM
+  | U128 => None
+  | U256 => None
+  end.
+
+Definition store_op_of_wsize (ws : wsize) : option arm_mnemonic :=
+  match ws with
+  | U8 => Some TODO_ARM
+  | U16 => Some TODO_ARM
+  | U32 => Some STR
+  | U64 => Some TODO_ARM
+  | U128 => None
+  | U256 => None
+  end.

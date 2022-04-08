@@ -524,6 +524,41 @@ Proof.
   by have [vs2'' -> hvs2 /=] := hrec _ _ _ htrs hvs;eauto.
 Qed.
 
+(* TODO: remove these 2 tactics *)
+Ltac t_of_val :=
+  (rewrite ?{1}/of_val;
+  match goal with
+  | [ |- to_bool ?v = ok _ -> _ ] =>
+      move=> /to_boolI ?; subst v
+
+  | [ |- to_int ?v = ok _ -> _ ] =>
+      move=> /to_intI ?; subst v
+
+  | [ |- to_arr _ ?v = ok ?a -> _ ] =>
+      let n := fresh "n" in
+      let a' := fresh "a" in
+      let h := fresh "hcast" in
+      move=> /to_arrI [n [a' [? h]]]; subst v
+
+  | [ |- to_word _ ?v = ok ?w -> _ ] =>
+      let ws := fresh "ws" in
+      let w' := fresh "w" in
+      let hws := fresh "hws" in
+      move=> /to_wordI [ws [w' [? /truncate_wordP [hws ?]]]]; subst v w
+  end)
+  ||
+  match goal with
+  | [ |- of_val _ _ = ok _ -> _ ] =>
+      let h := fresh "hx" in
+      move=> hx
+  end.
+
+Ltac t_truncate_val :=
+  match goal with
+  | [ |- truncate_val _ _ = ok _  -> _ ] =>
+      rewrite {1}/truncate_val; apply: rbindP=> ?; t_of_val
+  end.
+
 (* ----------------------------------------------------------------------- *)
 
 Fixpoint list_ltuple (ts:list stype) : sem_tuple ts -> values :=

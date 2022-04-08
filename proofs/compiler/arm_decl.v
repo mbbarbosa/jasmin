@@ -1,6 +1,14 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import sem_type strings utils wsize.
+
+Require Import
+  expr
+  sem_type
+  strings
+  utils
+  wsize.
 Require Export arch_decl.
 
 Set Implicit Arguments.
@@ -439,15 +447,14 @@ Instance shift_kind_toS : ToString sint shift_kind :=
   ; stringsE      := refl_equal
   }.
 
-Definition check_shift_amount (sk: shift_kind) (z: Z) : exec unit :=
-  let b := match sk with
-           | SLSL => (0 <=? z)%Z && (z <? 32)%Z
-           | SLSR => (1 <=? z)%Z && (z <? 33)%Z
-           | SASR => (1 <=? z)%Z && (z <? 33)%Z
-           | SROR => (1 <=? z)%Z && (z <? 33)%Z
-           | SRXR => (z == 1)%Z
-           end
-  in assert b ErrType.
+Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
+  match sk with
+  | SLSL => (0 <=? z)%Z && (z <? 32)%Z
+  | SLSR => (1 <=? z)%Z && (z <? 33)%Z
+  | SASR => (1 <=? z)%Z && (z <? 33)%Z
+  | SROR => (1 <=? z)%Z && (z <? 33)%Z
+  | SRXR => (z == 1)%Z
+  end.
 
 Definition shift_op (sk: shift_kind) :
   forall (sz: wsize), word sz -> Z -> word sz :=
@@ -459,13 +466,12 @@ Definition shift_op (sk: shift_kind) :
   | SRXR => TODO_ARM
   end.
 
-Definition shift_opZ (sk: shift_kind) (z: Z) (n: Z) : Z :=
-  match sk with
-  | SLSL => Z.shiftl z n
-  | SLSR => Z.shiftr z n
-  | SASR => Z.shiftr z n
-  | SROR => TODO_ARM
-  | SRXR => TODO_ARM
+Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
+  match ws, op with
+  | U32, Olsl (Op_w U32) => Some SLSL
+  | U32, Olsr U32 => Some SLSR
+  | U32, Oasr (Op_w U32) => Some SASR
+  | _, _ => None
   end.
 
 (* -------------------------------------------------------------------- *)

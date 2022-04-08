@@ -75,7 +75,7 @@ Fixpoint sem_prod_tuple (lt: seq stype) : sem_prod lt (sem_tuple lt) :=
       f (sem_prod_tuple lt')
   end.
 
-Lemma sem_prod_cat lt0 lt1 A :
+Definition sem_prod_cat lt0 lt1 A :
   sem_prod (lt0 ++ lt1) A = sem_prod lt0 (sem_prod lt1 A).
 Proof.
   induction lt0 as [|t lt0' IH];
@@ -83,7 +83,7 @@ Proof.
   rewrite /sem_prod /=.
   rewrite /sem_prod /= in IH.
   by rewrite IH.
-Qed.
+Defined.
 
 Definition add_arguments {A} {lt0 lt1} (f: sem_prod lt0 (sem_prod lt1 A))
   : sem_prod (lt0 ++ lt1) A.

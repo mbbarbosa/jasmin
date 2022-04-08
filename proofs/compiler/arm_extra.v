@@ -1,9 +1,21 @@
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import compiler_util expr sopn utils.
-Require Import arch_decl arch_extra.
-Require Import arm_decl arm_instr_decl arm_sem.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 
-Set   Implicit Arguments.
+Require Import
+  compiler_util
+  expr
+  sopn
+  utils.
+Require Import
+  arch_decl
+  arch_extra.
+Require Import
+  arm_decl
+  arm_instr_decl
+  arm_sem.
+
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 

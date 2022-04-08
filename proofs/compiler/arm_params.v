@@ -1,4 +1,6 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 
 Require Import
   arch_params
@@ -25,20 +27,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition default_opts : arith_opts :=
-  {|
-    args_size := reg_size;
-    set_flags := false;
-    is_conditional := false;
-    has_shift := None;
-  |}.
-
-
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
 Definition addi x tag y ofs :=
-  Copn [:: x ] tag (Oarm (ADDI default_opts)) [:: y; Pconst ofs ].
+  let opts := default_opts reg_size in
+  let eofs := Papp1 (Oword_of_int reg_size) (Pconst ofs) in
+  Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: y; eofs ].
 
 Definition arm_mov_ofs
   (x : lval) tag (_ : vptr_kind) (y : pexpr) (ofs : Z) : option instr_r :=
@@ -53,28 +48,27 @@ Definition arm_saparams : stack_alloc_params :=
 (* Linearization parameters. *)
 
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
+  let opts := default_opts reg_size in
   let rspg := Gvar rspi Slocal in
-  ([:: Lvar rspi ], Oarm (ADDI default_opts), [:: Pvar rspg; Pconst sz ]).
+  let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
+  ([:: Lvar rspi ], Oarm (ARM_op ADD opts), [:: Pvar rspg; esz ]).
 
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
+  let opts := default_opts reg_size in
   let rspg := Gvar rspi Slocal in
-  ([:: Lvar rspi ], Oarm (ADDI default_opts), [:: Pvar rspg; Pconst (-sz) ]).
+  let esz := Papp1 (Oword_of_int reg_size) (Pconst (-sz)) in
+  ([:: Lvar rspi ], Oarm (ARM_op ADD opts), [:: Pvar rspg; esz ]).
 
 Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=
+  let opts := default_opts reg_size in
   let p0 := Pvar (Gvar rspi Slocal) in
-  let p1 := Pconst (- wsize_size al) in
-  ([:: Lvar rspi ], Oarm (ANDI default_opts), [:: p0; p1 ]).
+  let p1 := Papp1 (Oword_of_int reg_size) (Pconst (- wsize_size al)) in
+  ([:: Lvar rspi ], Oarm (ARM_op AND opts), [:: p0; p1 ]).
 
 Definition arm_lassign (x : lval) (ws : wsize) (e : pexpr) :=
-  let opts :=
-    {|
-      args_size := ws;
-      set_flags := false;
-      is_conditional := false;
-      has_shift := None;
-    |}
-  in
-  ([:: x ], Oarm (MOV opts), [:: e ]).
+  if ws is U32
+  then ([:: x ], Oarm (ARM_op MOV (default_opts reg_size)), [:: e ])
+  else TODO_ARM. (* TODO_ARM: Make this an option and update linearize? *)
 
 Definition arm_liparams : linearization_params :=
   {|
@@ -91,7 +85,7 @@ Definition arm_liparams : linearization_params :=
 
 Definition arm_loparams : lowering_params fresh_vars lowering_options :=
   {|
-    lop_lower_i := fun _ _ _ _ => lower_i;
+    lop_lower_i := fun _ _ _ => lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 
@@ -123,7 +117,7 @@ Definition arm_agparams : asm_gen_params :=
 
 Definition arm_is_move_op (o : asm_op_t) : bool :=
   match o with
-  | BaseOp (None, MOV opts) =>
+  | BaseOp (None, ARM_op MOV opts) =>
       [&& ~~ set_flags opts
         , ~~ is_conditional opts
         & ~~ has_shift opts

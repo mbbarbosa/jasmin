@@ -1,10 +1,15 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
+
 Require Import utils.
 Require Export arch_sem.
 Require Import arch_decl.
-Require Import arm_decl arm_instr_decl.
+Require Import
+  arm_decl
+  arm_instr_decl.
 
-Set   Implicit Arguments.
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 

@@ -184,4 +184,16 @@ Proof.
   - exact: Heq1.
 Qed.
 
+Lemma eeq_exc_get_gvar gd s0 s1 (x : gvar) vs :
+  ~~ Sv.mem (gv x) vs
+  -> estate_eq_except vs s0 s1
+  -> get_gvar gd (evm s0) x = get_gvar gd (evm s1) x.
+Proof.
+  move=> /Sv_memP hx [hscs hmem hvm].
+  rewrite /get_gvar /=.
+  case: is_lvar; last done.
+  rewrite /get_var /=.
+  by rewrite (hvm _ hx).
+Qed.
+
 End ESTATE_EQ_EXCEPT.

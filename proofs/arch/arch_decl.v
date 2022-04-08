@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+Require Import utils oseq strings word memory_model global Relation_Operators sem_type syscall label.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -56,18 +56,18 @@ Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
 
-Definition wreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
-  sem_t (sword reg_size).
+Notation sreg := (sword reg_size).
+Notation wreg := (word reg_size).
 
-Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
-  sem_t (sword xreg_size).
+Notation sxreg := (sword xreg_size).
+Notation wxreg := (word xreg_size).
 
 Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
 Lemma sword_reg_neq_xreg :
-  sword reg_size != sword xreg_size.
+  sreg != sxreg.
 Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
@@ -154,7 +154,7 @@ Definition asm_arg_beq (a1 a2:asm_arg) :=
   end.
 
 Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
-  ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
+  exists e : sz = sz', eq_rect sz (fun s => word s) w sz' e = w' :=
   let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
@@ -409,7 +409,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimV of (velem -> wsize -> asm_op)
   | PrimSV of (signedness -> velem -> wsize -> asm_op)
   | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem → wsize → velem → wsize → asm_op)
+  | PrimVV of (velem -> wsize -> velem -> wsize -> asm_op)
   .
 
 (* -------------------------------------------------------------------- *)
