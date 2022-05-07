@@ -2,6 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import utils oseq strings word memory_model global Relation_Operators sem_type syscall label.
+Require Import shift_kind.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -28,8 +29,7 @@ Definition rtype {t T} `{ToString t T} := t.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
- * Parameterized by types for registers, extra registers, flags, conditions,
- * and shifts.
+ * Parameterized by types for registers, extra registers, flags, and conditions.
  *)
 Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
@@ -133,7 +133,6 @@ Canonical address_eqType := EqType address address_eqMixin.
 Variant asm_arg : Type :=
 | Condt  of cond_t
 | Imm ws of word ws
-| ImmZ   of Z        (* FIXME: unify with Imm. *)
 | Reg    of reg_t
 | Regx   of regx_t
 | Addr   of address
@@ -141,11 +140,13 @@ Variant asm_arg : Type :=
 
 Definition asm_args := (seq asm_arg).
 
+Definition is_Condt (a : asm_arg) : option cond_t :=
+  if a is Condt c then Some c else None.
+
 Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
   | Condt t1, Condt t2 => t1 == t2 ::>
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
-  | ImmZ z1, ImmZ z2 => z1 == z2
   | Reg r1, Reg r2     => r1 == r2 ::>
   | Regx r1, Regx r2   => r1 == r2 ::>
   | Addr a1, Addr a2   => a1 == a2
@@ -159,7 +160,7 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
-  case => [?| sz1 w1 |?|?|?|?|?] [?| sz2 w2 |?|?|?|?|?] /=;
+  case => [?| sz1 w1 |?|?|?|?] [?| sz2 w2 |?|?|?|?] /=;
     try by (constructor || apply: reflect_inj eqP => ?? []).
   apply: (iffP idP) => //=.
   + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
@@ -289,8 +290,7 @@ Variant arg_kind :=
 | CAregx
 | CAxmm
 | CAmem of bool (* true if Global is allowed *)
-| CAimm of wsize
-| CAimmZ.
+| CAimm of wsize.
 
 Scheme Equality for arg_kind.
 
@@ -332,7 +332,6 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm sz _, CAimm sz' => sz == sz'
-  | ImmZ _, CAimmZ => true
   | Reg _, CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
@@ -359,11 +358,11 @@ Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
 Variant pp_asm_op_ext :=
   | PP_error
   | PP_name
-  | PP_iname   of wsize
-  | PP_iname2  of string & wsize & wsize
-  | PP_viname  of velem & bool (* long *)
+  | PP_iname of wsize
+  | PP_iname2 of string & wsize & wsize
+  | PP_viname of velem & bool (* long *)
   | PP_viname2 of velem & velem (* source and target element sizes *)
-  | PP_ct      of asm_arg.
+  | PP_ct of asm_arg.
 
 Record pp_asm_op := mk_pp_asm_op {
   pp_aop_name : string;
@@ -402,7 +401,9 @@ Record instr_desc_t := {
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
 
+
 (* -------------------------------------------------------------------- *)
+
 Variant prim_constructor (asm_op:Type) :=
   | PrimP of wsize & (wsize -> asm_op)
   | PrimM of asm_op
@@ -410,6 +411,11 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimSV of (signedness -> velem -> wsize -> asm_op)
   | PrimX of (wsize -> wsize -> asm_op)
   | PrimVV of (velem -> wsize -> velem -> wsize -> asm_op)
+  | PrimARM of
+    (bool                 (* set_flags *)
+     -> bool              (* is_conditional *)
+     -> option shift_kind (* has_shift *)
+     -> asm_op)
   .
 
 (* -------------------------------------------------------------------- *)

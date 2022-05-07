@@ -9,6 +9,7 @@ let show_intrinsics asmOp fmt =
     | PrimX _ -> 2
     | PrimV _ -> 3
     | PrimVV _ -> 4
+    | PrimARM _ -> failwith "TODO_ARM: show_intrinsics"
   in
   let headers = [|
       "no size suffix";

@@ -56,89 +56,32 @@ let warn_extra_fd asmOp (_, fd) =
   List.iter (warn_extra_i asmOp) fd.f_body
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
-  let () = if SafetyConfig.sc_print_program () then
-      let s1,s2 = Glob_options.print_strings s in
-      Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
-                      %a@;@]@."
-        s1 s2
-        (Printer.pp_prog ~debug:true asmOp) p
-  in
-
-  let () = SafetyConfig.pp_current_config_diff () in
-
-  let () =
-    List.iter (fun f_decl ->
-        if f_decl.f_cc = Export then
-          let () = Format.eprintf "@[<v>Analyzing function %s@]@."
-              f_decl.f_name.fn_name in
-
-          let source_f_decl = List.find (fun source_f_decl ->
-              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
-            ) (snd source_p) in
-          analyze source_f_decl f_decl p)
-      (List.rev (snd p)) in
-  ()
-
-(* -------------------------------------------------------------------- *)
 let main () =
 
   let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
 
-  let lowering_vars tbl = X86_lowering.(
-
-    let f ty n = 
-      let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
-      Conv.cvar_of_var tbl v in
-    let b = f tbool in
-    { fresh_OF = (b "OF").vname
-    ; fresh_CF = (b "CF").vname
-    ; fresh_SF = (b "SF").vname
-    ; fresh_PF = (b "PF").vname
-    ; fresh_ZF = (b "ZF").vname
-    ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
-    ; is_regx = is_regx tbl
-    }) in
   try
     parse();
 
-    let lowering_opt =
-      X86_lowering.{ use_lea = !Glob_options.lea;
-                     use_set0 = !Glob_options.set0; } in
     let (module Ocaml_params : Arch_full.Core_arch) = 
       if true then 
         let module Lowering_params = struct 
-            let call_conv = 
-              match !Glob_options.call_conv with 
-              | Linux -> X86_decl.x86_linux_call_conv
-              | Windows -> X86_decl.x86_windows_call_conv
-            
-            let lowering_vars = lowering_vars 
-            
-            let lowering_opt = lowering_opt
+            let call_conv = Arm_decl.arm_linux_call_conv
           end in
-        (module X86_arch_full.X86(Lowering_params))
+        (module Arm_arch_full.Arm(Lowering_params))
       else assert false in
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in
 
     if !safety_makeconfigdoc <> None
-    then (
-      let dir = oget !safety_makeconfigdoc in
-      SafetyConfig.mk_config_doc dir;
-      exit 0);
+    then failwith "TODO_ARM makeconfigdoc";
 
     if !help_intrinsics
     then (Help.show_intrinsics Arch.asmOp_sopn (); exit 0);
 
     if !help_version
     then (Format.printf "%s@." version_string; exit 0);
-
-    let () = if !check_safety then
-        match !safety_config with
-        | Some conf -> SafetyConfig.load_config conf
-        | None -> () in
 
     let fname = !infile in
     let env, pprog, ast =
@@ -191,20 +134,6 @@ let main () =
 
     let do_compile = ref true in
     let donotcompile () = do_compile := false in
-
-    (* This function is called after each compilation pass.
-        - Check program safety (and exit) if the time has come
-        - Pretty-print the program
-        - Add your own checker here!
-    *)
-    let visit_prog_after_pass ~debug s p =
-      if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p Arch.asmOp Arch.analyze s p source_prog
-        |> donotcompile
-      else
-        eprint s (Printer.pp_prog ~debug Arch.asmOp) p in
-
-    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
     if !ec_list <> [] then begin
       let fmt, close =
@@ -357,10 +286,6 @@ let main () =
       | Const | Inline | Reg(_, Direct) -> false
      in
 
-    let pp_cuprog s cp =
-      Conv.prog_of_cuprog tbl cp |>
-      visit_prog_after_pass ~debug:true s in
-
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
       Printer.pp_sprog ~debug:true tbl Arch.asmOp fmt p in
@@ -468,7 +393,7 @@ let main () =
       );
       Compiler.lowering_vars = Arch.lowering_vars tbl;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_uprog  = (fun s p -> pp_cuprog s p; p);
+      Compiler.print_uprog  = (fun _ p -> p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);

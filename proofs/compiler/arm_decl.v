@@ -10,6 +10,7 @@ Require Import
   utils
   wsize.
 Require Export arch_decl.
+Require Export shift_kind.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,7 +34,7 @@ Variant register : Type :=
 | SP.                           (* Stack pointer. *)
 
 Definition register_dec_eq (r0 r1: register) : {r0 = r1} + {r0 <> r1}.
-  decide equality.
+  by repeat decide equality.
 Defined.
 
 Definition register_beq (r0 r1: register) : bool :=
@@ -41,41 +42,38 @@ Definition register_beq (r0 r1: register) : bool :=
   then true
   else false.
 
-Lemma reg_eq_axiom : Equality.axiom register_beq.
+Lemma register_eq_axiom : Equality.axiom register_beq.
 Proof.
   move=> x y.
-  apply:(iffP idP);
+  apply: (iffP idP);
     last move=> <-;
     rewrite /register_beq;
     by case: register_dec_eq.
 Qed.
 
-Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
-Canonical reg_eqType := EqType register reg_eqMixin.
+Instance eqTC_register : eqTypeC register :=
+  { ceqP := register_eq_axiom }.
+
+Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
-  [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12;
-  LR; SP ].
+  [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12; LR; SP ].
 
 Lemma registers_fin_axiom : Finite.axiom registers.
 Proof. by case. Qed.
 
-Definition reg_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK registers_fin_axiom).
-Canonical reg_choiceType :=
-  Eval hnf in ChoiceType register reg_choiceMixin.
+Lemma register_fin_axiom : Finite.axiom registers.
+Proof. by case. Qed.
 
-Definition reg_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK registers_fin_axiom).
-Canonical reg_countType :=
-  Eval hnf in CountType register reg_countMixin.
+Instance finTC_register : finTypeC register :=
+  {
+    cenum := registers;
+    cenumP := register_fin_axiom;
+  }.
 
-Definition reg_finMixin :=
-  FinMixin registers_fin_axiom.
-Canonical reg_finType :=
-  Eval hnf in FinType register reg_finMixin.
+Canonical register_finType := @cfinT_finType _ finTC_register.
 
-Definition string_of_register (r: register) : string :=
+Definition string_of_register (r : register) : string :=
   match r with
   | R00 => "r0"
   | R01 => "r1"
@@ -99,12 +97,6 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Instance eqTC_register : eqTypeC register :=
-  { ceqP := reg_eq_axiom }.
-
-Instance finC_register : finTypeC register :=
-  { cenumP := registers_fin_axiom }.
-
 Instance reg_toS : ToString sword32 register :=
   { category      := "register"
   ; to_string     := string_of_register
@@ -113,6 +105,7 @@ Instance reg_toS : ToString sword32 register :=
   ; inj_to_string := string_of_register_inj
   ; stringsE      := refl_equal
   }.
+
 
 (* -------------------------------------------------------------------- *)
 Variant register_ext : Type :=.
@@ -184,6 +177,7 @@ Instance regx_toS : ToString sword32 register_ext :=
 
 (* -------------------------------------------------------------------- *)
 (* Extra registers. *)
+
 Variant xregister : Type :=.
 
 Definition xregister_dec_eq (xr0 xr1: xregister) : {xr0 = xr1} + {xr0 <> xr1}.
@@ -195,37 +189,32 @@ Definition xregister_beq (xr0 xr1: xregister) : bool :=
   then true
   else false.
 
-Lemma xreg_eq_axiom : Equality.axiom xregister_beq.
+Lemma xregister_eq_axiom : Equality.axiom xregister_beq.
 Proof.
   move=> x y.
-  apply:(iffP idP);
+  apply: (iffP idP);
     last move=> <-;
     rewrite /xregister_beq;
     by case: xregister_dec_eq.
 Qed.
 
-Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
-Canonical xreg_eqType := EqType xregister xreg_eqMixin.
+Instance eqTC_xregister : eqTypeC xregister :=
+  { ceqP := xregister_eq_axiom }.
+
+Canonical xregister_eqType := @ceqT_eqType _ eqTC_xregister.
 
 Definition xregisters : seq xregister := [::].
 
-Lemma xregisters_fin_axiom : Finite.axiom xregisters.
+Lemma xregister_fin_axiom : Finite.axiom xregisters.
 Proof. by case. Qed.
 
-Definition xreg_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK xregisters_fin_axiom).
-Canonical xreg_choiceType :=
-  Eval hnf in ChoiceType xregister xreg_choiceMixin.
+Instance finTC_xregister : finTypeC xregister :=
+  {
+    cenum := xregisters;
+    cenumP := xregister_fin_axiom;
+  }.
 
-Definition xreg_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK xregisters_fin_axiom).
-Canonical xreg_countType :=
-  Eval hnf in CountType xregister xreg_countMixin.
-
-Definition xreg_finMixin :=
-  FinMixin xregisters_fin_axiom.
-Canonical xreg_finType :=
-  Eval hnf in FinType xregister xreg_finMixin.
+Canonical xregister_finType := @cfinT_finType _ finTC_xregister.
 
 Definition string_of_xregister (r: xregister) : string :=
   match r with
@@ -236,12 +225,6 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Instance eqTC_xregister : eqTypeC xregister :=
-  { ceqP := xreg_eq_axiom }.
-
-Instance finC_xregister : finTypeC xregister :=
-  { cenumP := xregisters_fin_axiom }.
-
 Instance xreg_toS : ToString sword64 xregister :=
   { category      := "xregister"
   ; to_string     := string_of_xregister
@@ -251,8 +234,10 @@ Instance xreg_toS : ToString sword64 xregister :=
   ; stringsE      := refl_equal
   }.
 
+
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
+
 Variant rflag : Type :=
 | NF    (* Negative condition flag. *)
 | ZF    (* Zero confition flag. *)
@@ -271,34 +256,29 @@ Definition rflag_beq (f0 f1: rflag) : bool :=
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
 Proof.
   move=> x y.
-  apply:(iffP idP);
+  apply: (iffP idP);
     last move=> <-;
     rewrite /rflag_beq;
     by case: rflag_dec_eq.
 Qed.
 
-Definition rflag_eqMixin := Equality.Mixin rflag_eq_axiom.
-Canonical rflag_eqType := EqType rflag rflag_eqMixin.
+Instance eqTC_rflag : eqTypeC rflag :=
+  { ceqP := rflag_eq_axiom }.
+
+Canonical rflag_eqType := @ceqT_eqType _ eqTC_rflag.
 
 Definition rflags := [:: NF; ZF; CF; VF ].
 
-Lemma rflags_fin_axiom : Finite.axiom rflags.
+Lemma rflag_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
 
-Definition rflag_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
-Canonical rflag_choiceType :=
-  Eval hnf in ChoiceType rflag rflag_choiceMixin.
+Instance finTC_rflag : finTypeC rflag :=
+  {
+    cenum := rflags;
+    cenumP := rflag_fin_axiom;
+  }.
 
-Definition rflag_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
-Canonical rflag_countType :=
-  Eval hnf in CountType rflag rflag_countMixin.
-
-Definition rflag_finMixin :=
-  FinMixin rflags_fin_axiom.
-Canonical rflag_finType :=
-  Eval hnf in FinType rflag rflag_finMixin.
+Canonical rflag_finType := @cfinT_finType _ finTC_rflag.
 
 Definition string_of_rflag (f : rflag) : string :=
   match f with
@@ -313,12 +293,6 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Instance eqTC_rflag : eqTypeC rflag :=
-  { ceqP := rflag_eq_axiom }.
-
-Instance finC_rflag : finTypeC rflag :=
-  { cenumP := rflags_fin_axiom }.
-
 Instance rflag_toS : ToString sbool rflag :=
   { category      := "rflag"
   ; to_string     := string_of_rflag
@@ -327,8 +301,10 @@ Instance rflag_toS : ToString sbool rflag :=
   ; stringsE      := refl_equal
   }.
 
+
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
+
 Variant condt : Type :=
 | EQ_ct    (* Equal. *)
 | NE_ct    (* Not equal. *)
@@ -358,22 +334,65 @@ Definition condt_beq (c0 c1: condt) : bool :=
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
 Proof.
   move=> x y.
-  apply:(iffP idP);
+  apply: (iffP idP);
     last move=> <-;
     rewrite /condt_beq;
     by case: condt_dec_eq.
 Qed.
 
-Definition condt_eqMixin := Equality.Mixin condt_eq_axiom.
-Canonical condt_eqType := EqType condt condt_eqMixin.
-
 Instance eqTC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
+
+Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
+
+Definition condts : seq condt :=
+  [:: EQ_ct; NE_ct; CS_ct; CC_ct; MI_ct; PL_ct; VS_ct; VC_ct; HI_ct; LS_ct
+    ; GE_ct; LT_ct; GT_ct; LE_ct; AL_ct
+  ].
+
+Lemma condt_fin_axiom : Finite.axiom condts.
+Proof. by case. Qed.
+
+Instance finTC_condt : finTypeC condt :=
+  {
+    cenum := condts;
+    cenumP := condt_fin_axiom;
+  }.
+
+Canonical condt_finType := @cfinT_finType _ finTC_condt.
+
+Definition string_of_condt (c : condt) : string :=
+  match c with
+  | EQ_ct => "eq"
+  | NE_ct => "ne"
+  | CS_ct => "cs"
+  | CC_ct => "cc"
+  | MI_ct => "mi"
+  | PL_ct => "pl"
+  | VS_ct => "vs"
+  | VC_ct => "vc"
+  | HI_ct => "hi"
+  | LS_ct => "ls"
+  | GE_ct => "ge"
+  | LT_ct => "lt"
+  | GT_ct => "gt"
+  | LE_ct => "le"
+  | AL_ct => "al"
+  end.
+
+Lemma string_of_condt_inj : injective string_of_condt.
+Proof.
+  by move=> x y /eqP h; apply/eqP; case: x y h => -[]; vm_compute.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
  * Some instructions can shift a register before performing an operation.
  *)
+
+(*
+TODO_ARM: Moved to separate module to implement parsing.
+
 Variant shift_kind : Type :=
 | SLSL          (* Logical shift left by 0 <= n < 32 bits. *)
 | SLSR          (* Logical shift left by 1 <= n < 33 bits. *)
@@ -384,53 +403,53 @@ Variant shift_kind : Type :=
                  * - bits [31:1] are shifted right one bit.
                  * - CF is shifted into bit [31].
                  *)
+*)
 
-Scheme Equality for shift_kind.
+Definition shift_kind_dec_eq (sk0 sk1 : shift_kind) :
+  {sk0 = sk1} + {sk0 <> sk1}.
+  by repeat decide equality.
+Defined.
+
+Definition shift_kind_beq (sk0 sk1 : shift_kind) : bool :=
+  if shift_kind_dec_eq sk0 sk1 is left _
+  then true
+  else false.
 
 Lemma shift_kind_eq_axiom : Equality.axiom shift_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_shift_kind_dec_bl.
-  by apply: internal_shift_kind_dec_lb.
+  move=> sk0 sk1.
+  apply: (iffP idP);
+    last move=> <-;
+    rewrite /shift_kind_beq;
+    by case: shift_kind_dec_eq.
 Qed.
-
-Definition shift_kind_eqMixin := Equality.Mixin shift_kind_eq_axiom.
-Canonical shift_kind_eqType := EqType shift_kind shift_kind_eqMixin.
 
 Instance eqTC_shift_kind : eqTypeC shift_kind :=
   { ceqP := shift_kind_eq_axiom }.
 
+Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
+
 Definition shift_kinds :=
   [:: SLSL; SLSR; SASR; SROR; SRXR ].
 
-Lemma shift_kinds_fin_axiom : Finite.axiom shift_kinds.
+Lemma shift_kind_fin_axiom : Finite.axiom shift_kinds.
 Proof. by case. Qed.
 
-Definition shift_kind_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK shift_kinds_fin_axiom).
-Canonical shift_kind_choiceType :=
-  Eval hnf in ChoiceType shift_kind shift_kind_choiceMixin.
+Instance finTC_shift_kind : finTypeC shift_kind :=
+  {
+    cenum := shift_kinds;
+    cenumP := shift_kind_fin_axiom;
+  }.
 
-Definition shift_kind_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK shift_kinds_fin_axiom).
-Canonical shift_kind_countType :=
-  Eval hnf in CountType shift_kind shift_kind_countMixin.
-
-Definition shift_kind_finMixin :=
-  FinMixin shift_kinds_fin_axiom.
-Canonical shift_kind_finType :=
-  Eval hnf in FinType shift_kind shift_kind_finMixin.
-
-Instance finC_shift_kind : finTypeC shift_kind :=
-  { cenumP := shift_kinds_fin_axiom }.
+Canonical shift_kind_finType := @cfinT_finType _ finTC_shift_kind.
 
 Definition string_of_shift_kind (sk : shift_kind) : string :=
   match sk with
-  | SLSL => "LSL"
-  | SLSR => "LSR"
-  | SASR => "ASR"
-  | SROR => "ROR"
-  | SRXR => "RXR"
+  | SLSL => "lsl"
+  | SLSR => "lsr"
+  | SASR => "asr"
+  | SROR => "ror"
+  | SRXR => "rxr"
   end.
 
 Lemma string_of_shift_kind_inj : injective string_of_shift_kind.
@@ -474,10 +493,12 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | _, _ => None
   end.
 
+
 (* -------------------------------------------------------------------- *)
 
 Lemma arm_reg_size_neq_xreg_size : U32 != U64.
 Proof. done. Qed.
+
 
 (* -------------------------------------------------------------------- *)
 
@@ -489,6 +510,7 @@ Proof. by case:rx. Qed.
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := U32
   ; xreg_size := U64
+  ; cond_eqC := eqTC_condt
   ; toS_r     := reg_toS
   ; toS_rx    := regx_toS
   ; toS_x     := xreg_toS

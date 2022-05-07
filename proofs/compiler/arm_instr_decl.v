@@ -21,6 +21,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+(* -------------------------------------------------------------------- *)
+(* ARM instruction options. *)
+
 Record arm_options :=
   {
     args_size : wsize;
@@ -30,10 +33,36 @@ Record arm_options :=
   }.
 
 Definition arm_options_beq (ao0 ao1 : arm_options) : bool :=
-  [&& set_flags ao0 == set_flags ao1
+  [&& args_size ao0 == args_size ao1
+    , set_flags ao0 == set_flags ao1
     , is_conditional ao0 == is_conditional ao1
     & has_shift ao0 == has_shift ao1
-   ].
+  ].
+
+Lemma arm_options_eq_axiom : Equality.axiom arm_options_beq.
+Proof.
+  move=> [? ? ? ?] [? ? ? ?].
+  apply: (iffP idP);
+    last move=> <-;
+    rewrite /arm_options_beq /=.
+  - move=> /and4P [].
+    repeat move=> /eqP ?.
+    by subst.
+  - by apply/and4P.
+Qed.
+
+Instance eqTC_arm_options : eqTypeC arm_options :=
+  { ceqP := arm_options_eq_axiom }.
+
+Canonical arm_options_eqType := @ceqT_eqType _ eqTC_arm_options.
+
+Lemma arm_options_dec_eq (ao0 ao1 : arm_options) :
+  { ao0 = ao1 } + { ao0 <> ao1 }.
+Proof.
+  case: (ao0 == ao1) /arm_options_eq_axiom.
+  - by left.
+  - by right.
+Qed.
 
 Definition default_opts (ws : wsize) : arm_options :=
   {|
@@ -59,7 +88,9 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
     has_shift := has_shift ao;
   |}.
 
+
 (* -------------------------------------------------------------------- *)
+(* ARM instruction mnemonics. *)
 
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
@@ -135,32 +166,147 @@ Variant arm_mnemonic : Type :=
 | PUSH.                          (* Store multiple 32-bit words from the stack,
                                     decrement sp (defined in terms of STMDB) *)
 
-Variant arm_op :=
-| ARM_op : arm_mnemonic -> arm_options -> arm_op.
-
-Definition arm_op_dec_eq (op0 op1 : arm_op) : {op0 = op1} + {op0 <> op1}.
+Definition arm_mnemonic_dec_eq (mn0 mn1 : arm_mnemonic) :
+  {mn0 = mn1} + {mn0 <> mn1}.
   by repeat decide equality.
-Qed.
+Defined.
 
-Definition arm_op_beq (op0 op1 : arm_op) : bool :=
-  if arm_op_dec_eq op0 op1 is left _
+Definition arm_mnemonic_beq (mn0 mn1 : arm_mnemonic) : bool :=
+  if arm_mnemonic_dec_eq mn0 mn1 is left _
   then true
   else false.
 
-Lemma arm_op_eq_axiom : Equality.axiom arm_op_beq.
+Lemma arm_mnemonic_eq_axiom : Equality.axiom arm_mnemonic_beq.
 Proof.
-  move=> x y.
+  move=> mn0 mn1.
   apply: (iffP idP);
     last move=> <-;
-    rewrite /arm_op_beq;
-    by case: arm_op_dec_eq.
+    rewrite /arm_mnemonic_beq;
+    by case: arm_mnemonic_dec_eq.
 Qed.
 
-Definition arm_op_eqMixin := Equality.Mixin arm_op_eq_axiom.
-Canonical arm_op_eqType := EqType arm_op arm_op_eqMixin.
+Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
+  { ceqP := arm_mnemonic_eq_axiom }.
+
+Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
+
+Definition arm_mnemonics : seq arm_mnemonic :=
+  [:: ADC; ADD; SBC; SUB; MUL; MLA; MLS; SMLAL; SMULL; UMLAL; UMULL
+    ; SDIV; UDIV; SSAT; USAT; SXTB; SXTH; UXTB; UXTH
+    ; AND; EOR; MVN; ORR
+    ; LSL; LSR; ROR
+    ; CMP; TST
+    ; BIC; MOV
+    ; LDR; LDRH; LDRSH; LDRB; LDRSB; LDRD; LDM; LDMIA; LDMDB; POP
+    ; STR; STRH; STRB; STRD; STM; STMIA; STMDB; PUSH
+  ].
+
+Lemma arm_mnemonic_fin_axiom : Finite.axiom arm_mnemonics.
+Proof. by case. Qed.
+
+Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
+  {
+    cenum := arm_mnemonics;
+    cenumP := arm_mnemonic_fin_axiom;
+  }.
+
+Canonical arm_mnemonic_finType := @cfinT_finType _ finTC_arm_mnemonic.
+
+Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
+  match mn with
+  | ADC => "adc"
+  | ADD => "add"
+  | SBC => "sbc"
+  | SUB => "sub"
+  | MUL => "mul"
+  | MLA => "mla"
+  | MLS => "mls"
+  | SMLAL => "smlal"
+  | SMULL => "smull"
+  | UMLAL => "umlal"
+  | UMULL => "umull"
+  | SDIV => "sdiv"
+  | UDIV => "udiv"
+  | SSAT => "ssat"
+  | USAT => "usat"
+  | SXTB => "sxtb"
+  | SXTH => "sxth"
+  | UXTB => "uxtb"
+  | UXTH => "uxth"
+  | AND => "and"
+  | EOR => "eor"
+  | MVN => "mvn"
+  | ORR => "orr"
+  | LSL => "lsl"
+  | LSR => "lsr"
+  | ROR => "ror"
+  | CMP => "cmp"
+  | TST => "tst"
+  | BIC => "bic"
+  | MOV => "mov"
+  | LDR => "ldr"
+  | LDRH => "ldrh"
+  | LDRSH => "ldrsh"
+  | LDRB => "ldrb"
+  | LDRSB => "ldrsb"
+  | LDRD => "ldrd"
+  | LDM => "ldm"
+  | LDMIA => "ldmia"
+  | LDMDB => "ldmdb"
+  | POP => "pop"
+  | STR => "str"
+  | STRH => "strh"
+  | STRB => "strb"
+  | STRD => "strd"
+  | STM => "stm"
+  | STMIA => "stmia"
+  | STMDB => "stmdb"
+  | PUSH => "push"
+  end.
+
+Lemma string_of_register_inj : injective string_of_register.
+Proof.
+  move=> x y /eqP h; apply/eqP; case: x y h => -[]; by vm_compute.
+Qed.
+
+
+(* -------------------------------------------------------------------- *)
+(* ARM operators are pairs of mnemonics and options. *)
+
+Variant arm_op :=
+| ARM_op : arm_mnemonic -> arm_options -> arm_op.
+
+Definition arm_op_beq (op0 op1 : arm_op) : bool :=
+  let '(ARM_op mn0 ao0) := op0 in
+  let '(ARM_op mn1 ao1) := op1 in
+  (mn0 == mn1) && (ao0 == ao1).
+
+Lemma arm_op_eq_axiom : Equality.axiom arm_op_beq.
+Proof.
+  move=> [mn0 ao0] [mn1 ao1].
+  apply: (iffP idP);
+    last move=> <-;
+    rewrite /arm_op_beq /=.
+  - move=> /andP [].
+    move=> /arm_mnemonic_eq_axiom <-.
+    by move=> /arm_options_eq_axiom <-.
+  - apply/andP. split.
+    + by apply/arm_mnemonic_eq_axiom.
+    + by apply/arm_options_eq_axiom.
+Qed.
 
 Instance eqTC_arm_op : eqTypeC arm_op :=
   { ceqP := arm_op_eq_axiom }.
+
+Canonical arm_op_eqType := @ceqT_eqType _ eqTC_arm_op.
+
+Lemma arm_op_dec_eq (op0 op1 : arm_op) :
+  { op0 = op1 } + { op0 <> op1 }.
+Proof.
+  case: (op0 == op1) /arm_op_eq_axiom.
+  - by left.
+  - by right.
+Qed.
 
 
 (* -------------------------------------------------------------------- *)
@@ -189,9 +335,9 @@ Definition rflags_ad : seq arg_desc := map F rflags.
 (* Common argument kinds. *)
 
 Definition reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
-Definition reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimmZ ] ] ].
+Definition reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimm reg_size ] ] ].
 Definition reg_reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
-Definition reg_reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimmZ  ] ] ].
+Definition reg_reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimm reg_size ] ] ].
 Definition reg_addr_ak := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
 
 
@@ -266,7 +412,7 @@ Qed.
 
 Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
   {|
-    id_msb_flag := id_msb_flag idt;
+    id_msb_flag := MSB_MERGE;
     id_tin := id_tin idt;
     id_in := id_in idt;
     id_tout := behead4 (id_tout idt);
@@ -279,8 +425,8 @@ Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
     id_tout_narr := drop_nzcv_tout_narr (id_tout_narr idt);
     id_check_dest := drop_nzcv_check_dest (id_check_dest idt);
     id_str_jas := id_str_jas idt;
-    id_wsize := id_wsize idt;
-    id_safe := id_safe idt;
+    id_wsize := reg_size;
+    id_safe := [::];
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments drop_nzcv : clear implicits.
@@ -340,7 +486,7 @@ Definition mk_semi_cond tin tout (semi : sem_prod tin (exec (sem_tuple tout)))
 
 Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
   {|
-    id_msb_flag := id_msb_flag idt;
+    id_msb_flag := MSB_MERGE;
     id_tin := (id_tin idt) ++ sbool :: (id_tout idt);
     id_in := (id_in idt) ++ E (id_nargs idt) :: (id_out idt);
     id_tout := id_tout idt;
@@ -357,8 +503,8 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
     id_tout_narr := id_tout_narr idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
-    id_wsize := id_wsize idt;
-    id_safe := id_safe idt;
+    id_wsize := reg_size;
+    id_safe := [::];
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_cond : clear implicits.
@@ -403,14 +549,15 @@ Qed.
 Definition mk_shifted (sk : shift_kind) (idt : instr_desc_t) semi' :
   instr_desc_t :=
   {|
-    id_msb_flag := id_msb_flag idt;
+    id_msb_flag := MSB_MERGE;
     id_tin := (id_tin idt) ++ [:: sword8 ];
     id_in := (id_in idt) ++ [:: E (id_nargs idt) ];
     id_tout := id_tout idt;
     id_out := id_out idt;
     id_semi := semi';
     id_nargs := (id_nargs idt).+1;
-    id_args_kinds := map (fun x => x ++ [:: [:: CAimmZ ] ]) (id_args_kinds idt);
+    id_args_kinds :=
+      map (fun x => x ++ [:: [:: CAimm reg_size] ]) (id_args_kinds idt);
     id_eq_size := mk_shifted_eq_size (id_eq_size idt);
     id_tin_narr :=
       mk_shifted_tin_narr
@@ -419,11 +566,23 @@ Definition mk_shifted (sk : shift_kind) (idt : instr_desc_t) semi' :
     id_tout_narr := id_tout_narr idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
-    id_wsize := id_wsize idt;
-    id_safe := id_safe idt;
+    id_wsize := reg_size;
+    id_safe := [::];
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_shifted : clear implicits.
+
+
+(* -------------------------------------------------------------------- *)
+(* Printing. *)
+
+Definition pp_arm_op
+  (mn : arm_mnemonic) (opts : arm_options) (args : seq asm_arg) : pp_asm_op :=
+  {|
+    pp_aop_name := string_of_arm_mnemonic mn; (* TODO_ARM: This is not used. *)
+    pp_aop_ext := PP_name;
+    pp_aop_args := map (fun a => (args_size opts, a)) args;
+  |}.
 
 
 (* -------------------------------------------------------------------- *)
@@ -444,9 +603,10 @@ Definition arm_ADD_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
   ok res.
 
 Definition arm_ADD_instr : instr_desc_t :=
+  let mn := ADD in
   let x :=
     {|
-      id_msb_flag := TODO_ARM;
+      id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
       id_tout := sflags ++ [:: sreg ];
@@ -458,10 +618,10 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := TODO_ARM;
-      id_wsize := TODO_ARM;
-      id_safe := TODO_ARM;
-      id_pp_asm := TODO_ARM;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::];
+      id_pp_asm := pp_arm_op mn opts;
     |}
   in
   let x :=
@@ -473,9 +633,7 @@ Definition arm_ADD_instr : instr_desc_t :=
   then x
   else drop_nzcv x.
 
-Definition arm_AND_semi
-  (wn wm : wreg_ty)
-  : exec nzcvr_ty :=
+Definition arm_AND_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
   let res := wand wn wm in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
@@ -485,9 +643,10 @@ Definition arm_AND_semi
      ).
 
 Definition arm_AND_instr : instr_desc_t :=
+  let mn := AND in
   let x :=
     {|
-      id_msb_flag := TODO_ARM;
+      id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
       id_tout := sflags ++ [:: sreg ]; (* FIXME: Does not set V. *)
@@ -499,10 +658,10 @@ Definition arm_AND_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := TODO_ARM;
-      id_wsize := TODO_ARM;
-      id_safe := TODO_ARM;
-      id_pp_asm := TODO_ARM;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::];
+      id_pp_asm := pp_arm_op mn opts;
     |}
   in
   let x :=
@@ -519,10 +678,11 @@ Definition arm_MOV_semi {sz : wsize} (wn : word sz) :
   ok (nzcvw_of_aluop wn (wunsigned wn) (wsigned wn)).
 
 Definition arm_MOV_instr : instr_desc_t :=
+  let mn := MOV in
   let sz := args_size opts in
   let x :=
     {|
-      id_msb_flag := TODO_ARM;
+      id_msb_flag := MSB_MERGE;
       id_tin := [:: sword sz ];
       id_in := [:: E 1 ];
       id_tout := sflags ++ [:: sword sz ];
@@ -534,10 +694,10 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := TODO_ARM;
-      id_wsize := TODO_ARM;
-      id_safe := TODO_ARM;
-      id_pp_asm := TODO_ARM;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::];
+      id_pp_asm := pp_arm_op mn opts;
     |}
   in
   if set_flags opts
@@ -547,9 +707,10 @@ Definition arm_MOV_instr : instr_desc_t :=
 Definition arm_LDR_semi (wn : wreg_ty) : exec wreg_ty :=
   ok wn.
 
-Definition arm_LDR_instr (_ : arm_options) : instr_desc_t :=
+Definition arm_LDR_instr : instr_desc_t :=
+  let mn := LDR in
   {|
-    id_msb_flag := TODO_ARM;
+    id_msb_flag := MSB_MERGE;
     id_tin := [:: sreg ];
     id_in := [:: E 1 ];
     id_tout := [:: sreg ];
@@ -561,18 +722,19 @@ Definition arm_LDR_instr (_ : arm_options) : instr_desc_t :=
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
     id_check_dest := refl_equal;
-    id_str_jas := TODO_ARM;
-    id_wsize := TODO_ARM;
-    id_safe := TODO_ARM;
-    id_pp_asm := TODO_ARM;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_wsize := reg_size;
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
   |}.
 
 Definition arm_STR_semi (wn : wreg_ty) : exec wreg_ty :=
   ok wn.
 
-Definition arm_STR_instr (_ : arm_options) : instr_desc_t :=
+Definition arm_STR_instr : instr_desc_t :=
+  let mn := STR in
   {|
-    id_msb_flag := TODO_ARM;
+    id_msb_flag := MSB_MERGE;
     id_tin := [:: sreg ];
     id_in := [:: E 1 ];
     id_tout := [:: sreg ];
@@ -584,14 +746,17 @@ Definition arm_STR_instr (_ : arm_options) : instr_desc_t :=
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
     id_check_dest := refl_equal;
-    id_str_jas := TODO_ARM;
-    id_wsize := TODO_ARM;
-    id_safe := TODO_ARM;
-    id_pp_asm := TODO_ARM;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_wsize := reg_size;
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
   |}.
 
-
 End ARM_INSTR.
+
+
+(* -------------------------------------------------------------------- *)
+(* Description of instructions. *)
 
 Definition mn_desc (mn : arm_mnemonic) : arm_options -> instr_desc_t :=
   match mn with
@@ -603,7 +768,6 @@ Definition mn_desc (mn : arm_mnemonic) : arm_options -> instr_desc_t :=
   | _ => TODO_ARM
   end.
 
-(* Description of instructions. *)
 Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
   let x := mn_desc mn opts in
@@ -612,13 +776,28 @@ Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   else x.
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
-  TODO_ARM.
+  let mk_prim mn sf ic hs :=
+    let opts :=
+      {|
+        args_size := reg_size;
+        set_flags := sf;
+        is_conditional := ic;
+        has_shift := hs;
+      |}
+    in
+    ARM_op mn opts
+  in
+  map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 Instance arm_op_decl : asm_op_decl arm_op :=
   {|
     instr_desc_op := arm_instr_desc;
     prim_string := arm_prim_string;
   |}.
+
+
+(* -------------------------------------------------------------------- *)
+(* Miscellaneous functions. *)
 
 Definition load_op_of_wsize (ws : wsize) : option arm_mnemonic :=
   match ws with

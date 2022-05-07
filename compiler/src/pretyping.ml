@@ -1279,96 +1279,48 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
   List.map (fun (s, x) -> Conv.string_of_string0 s, x) asmOp.Sopn.prim_string
 
-type size_annotation =
-  | SAw of W.wsize
-  | SAv of W.signedness * W.velem * W.wsize
-  | SAx of W.wsize * W.wsize
-  | SAvv of W.velem * W.wsize * W.velem * W.wsize
-  | SA
+(* -------------------------------------------------------------------- *)
+(* ARM parsing. *)
 
-let extract_size str : string * size_annotation =
-  let get_size =
-    function
-    | "8"   -> SAw W.U8
-    | "16"  -> SAw W.U16
-    | "32"  -> SAw W.U32
-    | "64"  -> SAw W.U64
-    | "128" -> SAw W.U128
-    | "256" -> SAw W.U256
+let get_set_flags ss =
+  match ss with
+  | "s" :: ss' -> (true, ss')
+  | ss' -> (false, ss')
 
-    | "2u8"   -> SAv (W.Unsigned, W.VE8,  W.U16)
-    | "4u8"   -> SAv (W.Unsigned, W.VE8,  W.U32)
-    | "2u16"  -> SAv (W.Unsigned, W.VE16, W.U32)
-    | "8u8"   -> SAv (W.Unsigned, W.VE8,  W.U64)
-    | "4u16"  -> SAv (W.Unsigned, W.VE16, W.U64)
-    | "2u32"  -> SAv (W.Unsigned, W.VE32, W.U64)
-    | "16u8"  -> SAv (W.Unsigned, W.VE8,  W.U128)
-    | "8u16"  -> SAv (W.Unsigned, W.VE16, W.U128)
-    | "4u32"  -> SAv (W.Unsigned, W.VE32, W.U128)
-    | "2u64"  -> SAv (W.Unsigned, W.VE64, W.U128)
-    | "32u8"  -> SAv (W.Unsigned, W.VE8,  W.U256)
-    | "16u16" -> SAv (W.Unsigned, W.VE16, W.U256)
-    | "8u32"  -> SAv (W.Unsigned, W.VE32, W.U256)
-    | "4u64"  -> SAv (W.Unsigned, W.VE64, W.U256)
+let get_is_conditional ss =
+  match ss with
+  | "c" :: ss' -> (true, ss')
+  | ss' -> (false, ss')
 
-    | "2s8"   -> SAv (W.Signed, W.VE8,  W.U16)
-    | "4s8"   -> SAv (W.Signed, W.VE8,  W.U32)
-    | "2s16"  -> SAv (W.Signed, W.VE16, W.U32)
-    | "8s8"   -> SAv (W.Signed, W.VE8,  W.U64)
-    | "4s16"  -> SAv (W.Signed, W.VE16, W.U64)
-    | "2s32"  -> SAv (W.Signed, W.VE32, W.U64)
-    | "16s8"  -> SAv (W.Signed, W.VE8,  W.U128)
-    | "8s16"  -> SAv (W.Signed, W.VE16, W.U128)
-    | "4s32"  -> SAv (W.Signed, W.VE32, W.U128)
-    | "2s64"  -> SAv (W.Signed, W.VE64, W.U128)
-    | "32s8"  -> SAv (W.Signed, W.VE8,  W.U256)
-    | "16s16" -> SAv (W.Signed, W.VE16, W.U256)
-    | "8s32"  -> SAv (W.Signed, W.VE32, W.U256)
-    | "4s64"  -> SAv (W.Signed, W.VE64, W.U256)
-    | s -> 
-      let wsize_of_int = function
-        | 8   -> W.U8
-        | 16  -> W.U16
-        | 32  -> W.U32
-        | 64  -> W.U64
-        | 128 -> W.U128
-        | 256 -> W.U256
-        | _   -> raise Not_found in
-      try 
-        Scanf.sscanf s "%c%u%c%u%!" 
-          (fun c0 i c1 j -> 
-            if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
-            SAx(wsize_of_int i, wsize_of_int j))
-      with Not_found | End_of_file | Scanf.Scan_failure _ -> SA
-  in
-  match List.rev (String.split_on_char '_' str) with
-  | [] -> str, SA
-  | suf2 :: ((suf1 :: s) as tail) ->
-     begin match get_size suf1, get_size suf2 with
-     | SAv (_, ve1, sz1), SAv (_, ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
-     | _, SA -> str, SA
-     | _, sz -> String.concat "_" (List.rev tail), sz
-     end
-  | suf :: s ->
-    match get_size suf with
-    | SA -> str, SA
-    | sz -> String.concat "_" (List.rev s), sz
+let shift_kind_assoc =
+  let s_of_sk sk = Conv.string_of_string0 (Arm_decl.string_of_shift_kind sk) in
+  List.map (fun sk -> (s_of_sk sk, sk)) Arm_decl.shift_kinds
 
-let tt_prim asmOp ws id =
-  let { L.pl_loc = loc ; L.pl_desc = s } = id in
-  let name, sz = extract_size s in
-  match List.assoc name (prim_string asmOp) with
-  | PrimP (d, pr) ->
-    pr ws (match sz with
-        | SAw sz -> sz 
-        | SA -> d 
-        | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
-        | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-  | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
-  | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
+let get_has_shift ss =
+  match ss with
+  | [] -> (None, [])
+  | s :: ss' ->
+    begin
+      match List.assoc_opt s shift_kind_assoc with
+      | Some sk -> (Some sk, ss')
+      | None -> (None, s :: ss')
+    end
+
+let get_arm_prim str =
+  let str = String.lowercase_ascii str in
+  let ss = List.rev (String.split_on_char '_' str) in
+  let has_shift, ss = get_has_shift ss in
+  let is_conditional, ss = get_is_conditional ss in
+  let set_flags, ss = get_set_flags ss in
+  let name = String.concat "_" (List.rev ss) in
+  (name, set_flags, is_conditional, has_shift)
+
+let tt_prim asmOp id =
+  let {L.pl_loc= loc; L.pl_desc= s} = id in
+  let name, set_flags, is_conditional, has_shift = get_arm_prim s in
+  match List.assoc_opt name (prim_string asmOp) with
+  | Some (PrimARM pr) -> pr set_flags is_conditional has_shift
+  | _ -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
@@ -1716,7 +1668,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim asmOp None f in
+      let p = tt_prim asmOp f in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1724,10 +1676,9 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
-      let ws, s = ct in
-      let ws = tt_ws ws in
+      let _, s = ct in
       assert (s = `Unsigned); (* FIXME *)
-      let p = tt_prim asmOp (Some ws) f in
+      let p = tt_prim asmOp f in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in

@@ -106,6 +106,7 @@ lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
+lang/shift_kind.v
 lang/sopn.v
 lang/strings.v
 lang/syscall.v
