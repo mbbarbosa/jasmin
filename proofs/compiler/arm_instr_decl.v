@@ -26,29 +26,27 @@ Unset Printing Implicit Defensive.
 
 Record arm_options :=
   {
-    args_size : wsize;
     set_flags : bool;
     is_conditional : bool;
     has_shift : option shift_kind;
   }.
 
 Definition arm_options_beq (ao0 ao1 : arm_options) : bool :=
-  [&& args_size ao0 == args_size ao1
-    , set_flags ao0 == set_flags ao1
+  [&& set_flags ao0 == set_flags ao1
     , is_conditional ao0 == is_conditional ao1
     & has_shift ao0 == has_shift ao1
   ].
 
 Lemma arm_options_eq_axiom : Equality.axiom arm_options_beq.
 Proof.
-  move=> [? ? ? ?] [? ? ? ?].
+  move=> [? ? ?] [? ? ?].
   apply: (iffP idP);
     last move=> <-;
     rewrite /arm_options_beq /=.
-  - move=> /and4P [].
+  - move=> /and3P [].
     repeat move=> /eqP ?.
     by subst.
-  - by apply/and4P.
+  - by apply/and3P.
 Qed.
 
 Instance eqTC_arm_options : eqTypeC arm_options :=
@@ -64,9 +62,8 @@ Proof.
   - by right.
 Qed.
 
-Definition default_opts (ws : wsize) : arm_options :=
+Definition default_opts : arm_options :=
   {|
-    args_size := ws;
     set_flags := false;
     is_conditional := false;
     has_shift := None;
@@ -74,7 +71,6 @@ Definition default_opts (ws : wsize) : arm_options :=
 
 Definition set_is_conditional (ao : arm_options) : arm_options :=
   {|
-    args_size := args_size ao;
     set_flags := set_flags ao;
     is_conditional := true;
     has_shift := has_shift ao;
@@ -82,7 +78,6 @@ Definition set_is_conditional (ao : arm_options) : arm_options :=
 
 Definition unset_is_conditional (ao : arm_options) : arm_options :=
   {|
-    args_size := args_size ao;
     set_flags := set_flags ao;
     is_conditional := false;
     has_shift := has_shift ao;
@@ -130,13 +125,13 @@ Variant arm_mnemonic : Type :=
 | LSR                            (* Logical shift right *)
 | ROR                            (* Rotate right *)
 
-(* Comparison *)
-| CMP                            (* Compare *)
-| TST                            (* Test flags *)
-
 (* Other data processing instructions *)
 | BIC                            (* Bitwise bit clear *)
 | MOV                            (* Copy operand to destination *)
+
+(* Comparison *)
+| CMP                            (* Compare *)
+| TST                            (* Test flags *)
 
 (* Loads *)
 | LDR                            (* Load a 32-bit word *)
@@ -195,8 +190,8 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; SDIV; UDIV; SSAT; USAT; SXTB; SXTH; UXTB; UXTH
     ; AND; EOR; MVN; ORR
     ; LSL; LSR; ROR
-    ; CMP; TST
     ; BIC; MOV
+    ; CMP; TST
     ; LDR; LDRH; LDRSH; LDRB; LDRSB; LDRD; LDM; LDMIA; LDMDB; POP
     ; STR; STRH; STRB; STRD; STM; STMIA; STMDB; PUSH
   ].
@@ -211,6 +206,26 @@ Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
   }.
 
 Canonical arm_mnemonic_finType := @cfinT_finType _ finTC_arm_mnemonic.
+
+(* ARM instructions are either data, comparison or memory instructions. *)
+
+Definition data_mnemonics : seq arm_mnemonic :=
+  [:: ADC; ADD; SBC; SUB; MUL; MLA; MLS; SMLAL; SMULL; UMLAL; UMULL; SDIV; UDIV
+    ; SSAT; USAT; SXTB; SXTH; UXTB; UXTH; AND; EOR; MVN; ORR; LSL; LSR; ROR
+    ; BIC; MOV
+  ].
+
+Definition comparison_mnemonics : seq arm_mnemonic :=
+  [:: CMP; TST ].
+
+Definition memory_mnemonics : seq arm_mnemonic :=
+  [:: LDR; LDRH; LDRSH; LDRB; LDRSB; LDRD; LDM; LDMIA; LDMDB; POP; STR; STRH
+    ; STRB; STRD; STM; STMIA; STMDB; PUSH
+  ].
+
+Lemma mnemonic_kind_enum :
+  data_mnemonics ++ comparison_mnemonics ++ memory_mnemonics = cenum.
+Proof. done. Qed.
 
 Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   match mn with
@@ -337,7 +352,8 @@ Definition rflags_ad : seq arg_desc := map F rflags.
 Definition reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
 Definition reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimm reg_size ] ] ].
 Definition reg_reg_reg_ak := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
-Definition reg_reg_imm_ak := [:: [:: [:: CAreg ]; [:: CAimm reg_size ] ] ].
+Definition reg_reg_imm_ak :=
+  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm reg_size ] ] ].
 Definition reg_addr_ak := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
 
 
@@ -426,7 +442,7 @@ Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
     id_check_dest := drop_nzcv_check_dest (id_check_dest idt);
     id_str_jas := id_str_jas idt;
     id_wsize := reg_size;
-    id_safe := [::];
+    id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments drop_nzcv : clear implicits.
@@ -504,7 +520,7 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_wsize := reg_size;
-    id_safe := [::];
+    id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_cond : clear implicits.
@@ -514,8 +530,7 @@ Arguments mk_cond : clear implicits.
 (* Shift transformations.
  * Instruction descriptions are defined without optionally shifted registers.
  * The following transformation adds a shift argument to an instruction
- * and updates the semantics and the rest of the fields accordingly.
- *)
+ * and updates the semantics and the rest of the fields accordingly. *)
 
 Definition mk_semi_shifted
   {A} (sk : shift_kind) (semi : sem_prod [:: sreg; sreg ] (exec A)) :
@@ -567,7 +582,7 @@ Definition mk_shifted (sk : shift_kind) (idt : instr_desc_t) semi' :
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_wsize := reg_size;
-    id_safe := [::];
+    id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_shifted : clear implicits.
@@ -581,12 +596,27 @@ Definition pp_arm_op
   {|
     pp_aop_name := string_of_arm_mnemonic mn; (* TODO_ARM: This is not used. *)
     pp_aop_ext := PP_name;
-    pp_aop_args := map (fun a => (args_size opts, a)) args;
+    pp_aop_args := map (fun a => (reg_size, a)) args;
   |}.
 
 
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
+(* Data instructions descriptions are defined first as setting flags, and
+   without shifts.
+   Then, depending on [set_flags], the description is updated with [drop_nzcv].
+   After that, depending on [has_shift], shifts are added with [mk_shifted].
+   Comparison instructions ignore [has_shift].
+   Memory instruction ignore [has_shift] and [set_flags].
+   All instruction descriptions are made conditional in [arm_instr_desc] with
+   [mk_cond].
+
+   The argument type for shifts is [sword U8] and we must enforce that the
+   value is in the appropriate range.
+   It can't be [sint] since only words have an interpretation.
+
+   All descriptions have [id_msb_flag] as [MSB_MERGE], but since all instructions
+   have a 32-bit output, this is irrelevant. *)
 
 Section ARM_INSTR.
 
@@ -620,7 +650,7 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_wsize := reg_size;
-      id_safe := [::];
+      id_safe := [::]; (* TODO_ARM: Complete. *)
       id_pp_asm := pp_arm_op mn opts;
     |}
   in
@@ -637,8 +667,8 @@ Definition arm_AND_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
   let res := wand wn wm in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
-       , TODO_ARM (* FIXME: C depends on the shift. *)
-       , TODO_ARM (* FIXME: V should be unchanged. *)
+       , None (* TODO_ARM: Complete. C depends on the shift. *)
+       , None (* TODO_ARM: Complete. V should be unchanged. *)
        & res
      ).
 
@@ -649,8 +679,8 @@ Definition arm_AND_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
-      id_tout := sflags ++ [:: sreg ]; (* FIXME: Does not set V. *)
-      id_out := rflags_ad ++ [:: E 0 ]; (* FIXME: Does not set V. *)
+      id_tout := sflags ++ [:: sreg ]; (* TODO_ARM: Does not set V. *)
+      id_out := rflags_ad ++ [:: E 0 ]; (* TODO_ARM: Does not set V. *)
       id_semi := arm_AND_semi;
       id_nargs := 3;
       id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
@@ -660,7 +690,7 @@ Definition arm_AND_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_wsize := reg_size;
-      id_safe := [::];
+      id_safe := [::]; (* TODO_ARM: Complete. *)
       id_pp_asm := pp_arm_op mn opts;
     |}
   in
@@ -679,13 +709,12 @@ Definition arm_MOV_semi {sz : wsize} (wn : word sz) :
 
 Definition arm_MOV_instr : instr_desc_t :=
   let mn := MOV in
-  let sz := args_size opts in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sword sz ];
+      id_tin := [:: sreg ];
       id_in := [:: E 1 ];
-      id_tout := sflags ++ [:: sword sz ];
+      id_tout := sflags ++ [:: sreg ];
       id_out := rflags_ad ++ [:: E 0 ];
       id_semi := arm_MOV_semi;
       id_nargs := 2;
@@ -696,7 +725,7 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_wsize := reg_size;
-      id_safe := [::];
+      id_safe := [::]; (* TODO_ARM: Complete. *)
       id_pp_asm := pp_arm_op mn opts;
     |}
   in
@@ -724,7 +753,7 @@ Definition arm_LDR_instr : instr_desc_t :=
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_wsize := reg_size;
-    id_safe := [::];
+    id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
@@ -736,9 +765,9 @@ Definition arm_STR_instr : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := [:: sreg ];
-    id_in := [:: E 1 ];
+    id_in := [:: E 0 ];
     id_tout := [:: sreg ];
-    id_out := [:: E 0 ];
+    id_out := [:: E 1 ];
     id_semi := arm_STR_semi;
     id_nargs := 2;
     id_args_kinds := reg_addr_ak;
@@ -748,7 +777,7 @@ Definition arm_STR_instr : instr_desc_t :=
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_wsize := reg_size;
-    id_safe := [::];
+    id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
@@ -758,15 +787,18 @@ End ARM_INSTR.
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
-Definition mn_desc (mn : arm_mnemonic) : arm_options -> instr_desc_t :=
-  match mn with
-  | ADD => arm_ADD_instr
-  | AND => arm_AND_instr
-  | MOV => arm_MOV_instr
-  | LDR => arm_LDR_instr
-  | STR => arm_STR_instr
-  | _ => TODO_ARM
-  end.
+Definition mn_desc (mn : arm_mnemonic) (opts : arm_options) : instr_desc_t :=
+  let desc :=
+    match mn with
+    | ADD => arm_ADD_instr
+    | AND => arm_AND_instr
+    | MOV => arm_MOV_instr
+    | LDR => arm_LDR_instr
+    | STR => arm_STR_instr
+    | _ => TODO_ARM "mn_desc"
+    end
+  in
+  desc opts.
 
 Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
@@ -778,12 +810,7 @@ Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
   let mk_prim mn sf ic hs :=
     let opts :=
-      {|
-        args_size := reg_size;
-        set_flags := sf;
-        is_conditional := ic;
-        has_shift := hs;
-      |}
+      {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
     in
     ARM_op mn opts
   in
@@ -795,26 +822,27 @@ Instance arm_op_decl : asm_op_decl arm_op :=
     prim_string := arm_prim_string;
   |}.
 
+Definition arm_asm_i := @asm_i _ _ _ _ _ _ _ arm_op_decl.
 
 (* -------------------------------------------------------------------- *)
 (* Miscellaneous functions. *)
 
 Definition load_op_of_wsize (ws : wsize) : option arm_mnemonic :=
   match ws with
-  | U8 => Some TODO_ARM
-  | U16 => Some TODO_ARM
+  | U8 => None (* TODO_ARM: Complete. *)
+  | U16 => None (* TODO_ARM: Complete. *)
   | U32 => Some LDR
-  | U64 => Some TODO_ARM
+  | U64 => None (* TODO_ARM: Complete. *)
   | U128 => None
   | U256 => None
   end.
 
 Definition store_op_of_wsize (ws : wsize) : option arm_mnemonic :=
   match ws with
-  | U8 => Some TODO_ARM
-  | U16 => Some TODO_ARM
+  | U8 => None (* TODO_ARM: Complete. *)
+  | U16 => None (* TODO_ARM: Complete. *)
   | U32 => Some STR
-  | U64 => Some TODO_ARM
+  | U64 => None (* TODO_ARM: Complete. *)
   | U128 => None
   | U256 => None
   end.

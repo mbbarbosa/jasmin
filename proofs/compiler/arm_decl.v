@@ -16,7 +16,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Axiom TODO_ARM : forall {A}, A.
+Axiom TODO_ARM : forall {A}, string -> A.
+Definition TODO_ARM_PROOF : forall {A}, A := TODO_ARM "proof".
 
 (* ARM Cortex-M4 architecture
 
@@ -319,8 +320,7 @@ Variant condt : Type :=
 | GE_ct    (* Signed greater than or equal. *)
 | LT_ct    (* Signed less than. *)
 | GT_ct    (* Signed greater than. *)
-| LE_ct    (* Signed less than or equal. *)
-| AL_ct.   (* Always. *)
+| LE_ct.   (* Signed less than or equal. *)
 
 Definition condt_dec_eq (c0 c1: condt) : {c0 = c1} + {c0 <> c1}.
   by repeat decide equality.
@@ -347,7 +347,7 @@ Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
 
 Definition condts : seq condt :=
   [:: EQ_ct; NE_ct; CS_ct; CC_ct; MI_ct; PL_ct; VS_ct; VC_ct; HI_ct; LS_ct
-    ; GE_ct; LT_ct; GT_ct; LE_ct; AL_ct
+    ; GE_ct; LT_ct; GT_ct; LE_ct
   ].
 
 Lemma condt_fin_axiom : Finite.axiom condts.
@@ -377,13 +377,39 @@ Definition string_of_condt (c : condt) : string :=
   | LT_ct => "lt"
   | GT_ct => "gt"
   | LE_ct => "le"
-  | AL_ct => "al"
   end.
 
 Lemma string_of_condt_inj : injective string_of_condt.
 Proof.
   by move=> x y /eqP h; apply/eqP; case: x y h => -[]; vm_compute.
 Qed.
+
+Definition not_condt (c : condt) : condt :=
+  match c with
+  | EQ_ct => NE_ct
+  | NE_ct => EQ_ct
+  | CS_ct => CC_ct
+  | CC_ct => CS_ct
+  | MI_ct => PL_ct
+  | PL_ct => MI_ct
+  | VS_ct => VC_ct
+  | VC_ct => VS_ct
+  | HI_ct => LS_ct
+  | LS_ct => HI_ct
+  | GE_ct => LT_ct
+  | LT_ct => GE_ct
+  | GT_ct => LE_ct
+  | LE_ct => GT_ct
+  end.
+
+Definition condt_of_rflag (r : rflag) : condt :=
+  match r with
+  | NF => MI_ct
+  | ZF => EQ_ct
+  | CF => CS_ct
+  | VF => VS_ct
+  end.
+
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
@@ -398,7 +424,7 @@ Variant shift_kind : Type :=
 | SLSR          (* Logical shift left by 1 <= n < 33 bits. *)
 | SASR          (* Logical shift left by 1 <= n < 33 bits. *)
 | SROR          (* Logical shift left by 1 <= n < 33 bits. *)
-| SRXR.         (* Rotate right one bit, with extend.
+| SRRX.         (* Rotate right one bit, with extend.
                  * - bit [0] is written to shifter_carry_out.
                  * - bits [31:1] are shifted right one bit.
                  * - CF is shifted into bit [31].
@@ -430,7 +456,7 @@ Instance eqTC_shift_kind : eqTypeC shift_kind :=
 Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
 
 Definition shift_kinds :=
-  [:: SLSL; SLSR; SASR; SROR; SRXR ].
+  [:: SLSL; SLSR; SASR; SROR; SRRX ].
 
 Lemma shift_kind_fin_axiom : Finite.axiom shift_kinds.
 Proof. by case. Qed.
@@ -449,7 +475,7 @@ Definition string_of_shift_kind (sk : shift_kind) : string :=
   | SLSR => "lsr"
   | SASR => "asr"
   | SROR => "ror"
-  | SRXR => "rxr"
+  | SRRX => "rrx"
   end.
 
 Lemma string_of_shift_kind_inj : injective string_of_shift_kind.
@@ -468,11 +494,11 @@ Instance shift_kind_toS : ToString sint shift_kind :=
 
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
   match sk with
-  | SLSL => (0 <=? z)%Z && (z <? 32)%Z
-  | SLSR => (1 <=? z)%Z && (z <? 33)%Z
-  | SASR => (1 <=? z)%Z && (z <? 33)%Z
-  | SROR => (1 <=? z)%Z && (z <? 33)%Z
-  | SRXR => (z == 1)%Z
+  | SLSL => (0 <=? z)%Z && (z <=? 31)%Z
+  | SLSR => (1 <=? z)%Z && (z <=? 31)%Z (* TODO_ARM: Should be 32. *)
+  | SASR => (1 <=? z)%Z && (z <=? 31)%Z (* TODO_ARM: Should be 32. *)
+  | SROR => (1 <=? z)%Z && (z <=? 31)%Z
+  | SRRX => (z == 1)%Z
   end.
 
 Definition shift_op (sk: shift_kind) :
@@ -482,7 +508,7 @@ Definition shift_op (sk: shift_kind) :
   | SLSR => wshr
   | SASR => wsar
   | SROR => wror
-  | SRXR => TODO_ARM
+  | SRRX => TODO_ARM "shift_op"
   end.
 
 Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=

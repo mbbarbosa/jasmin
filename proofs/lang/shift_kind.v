@@ -3,4 +3,4 @@
  | SLSR
  | SASR
  | SROR
- | SRXR.
+ | SRRX.

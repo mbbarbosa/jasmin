@@ -1,0 +1,43 @@
+export
+fn str(reg u32 arg) {
+  reg u32 x;
+  x = arg;
+
+  [arg] = x;
+
+  [x + 3] = x;
+
+  // Shifts.
+  [x + (arg * 1)] = x;
+  [x + (arg * 2)] = x;
+  [x + (arg * 4)] = x;
+  [x + (arg * 8)] = x;
+
+  // Set flags.
+  reg bool n, z, v, c;
+  n, z, c, v, _ = #MOVS(x);
+
+  // Conditions.
+  [x] = x if z; // EQ
+  [x] = x if z; // NE
+  [x] = x if c; // CS
+  [x] = x if c; // CC
+  [x] = x if n; // MI
+  [x] = x if n; // PL
+  [x] = x if v; // VS
+  [x] = x if v; // VC
+
+  // Should not be in an IT block.
+  [x] = x if z;
+  [x] = x if v;
+
+  // Should be in two IT blocks.
+  [x] = x if z;
+  [x + arg] = x if z;
+  [x + (arg * 4)] = x if z;
+  [x + 2] = x if z;
+  [x + (arg * 4)] = x if z;
+  [x] = x if z;
+  [x + (x * 8)] = x if z;
+  [x] = x if z;
+}

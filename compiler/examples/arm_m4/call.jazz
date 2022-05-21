@@ -1,0 +1,12 @@
+fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
+  reg u32 res;
+  res = #ADD(arg0, arg1, #LSL(3));
+  return res;
+}
+
+export
+fn main(reg u32 arg0, reg u32 arg1) -> reg u32 {
+  reg u32 res;
+  res = add(arg0, arg1);
+  return res;
+}

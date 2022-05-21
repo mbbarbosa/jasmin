@@ -1282,45 +1282,46 @@ let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
 (* -------------------------------------------------------------------- *)
 (* ARM parsing. *)
 
-let get_set_flags ss =
-  match ss with
-  | "s" :: ss' -> (true, ss')
-  | ss' -> (false, ss')
+let get_set_flags s =
+  if String.ends_with s "s" then (true, String.drop_end 1 s) else (false, s)
 
-let get_is_conditional ss =
-  match ss with
-  | "c" :: ss' -> (true, ss')
-  | ss' -> (false, ss')
+let get_is_conditional s =
+  if String.ends_with s "cc" then (true, String.drop_end 2 s) else (false, s)
 
 let shift_kind_assoc =
   let s_of_sk sk = Conv.string_of_string0 (Arm_decl.string_of_shift_kind sk) in
   List.map (fun sk -> (s_of_sk sk, sk)) Arm_decl.shift_kinds
 
-let get_has_shift ss =
-  match ss with
-  | [] -> (None, [])
-  | s :: ss' ->
-    begin
-      match List.assoc_opt s shift_kind_assoc with
-      | Some sk -> (Some sk, ss')
-      | None -> (None, s :: ss')
-    end
+let get_has_shift args =
+  let get_shift _ a =
+    match a.L.pl_desc with
+    | S.PEPrim (id, [{ L.pl_desc = S.PEInt _ } as sham]) ->
+        let s = String.lowercase_ascii id.pl_desc in
+        begin
+          match List.assoc_opt s shift_kind_assoc with
+          | Some sk -> Some (sk, sham)
+          | None -> None
+        end
+    | _ ->
+        None
+  in
+  match List.opicki get_shift args with
+  | None -> (None, args)
+  | Some (i, (sk, sham)) -> (Some sk, List.modify_at i (fun _ -> sham) args)
 
-let get_arm_prim str =
-  let str = String.lowercase_ascii str in
-  let ss = List.rev (String.split_on_char '_' str) in
-  let has_shift, ss = get_has_shift ss in
-  let is_conditional, ss = get_is_conditional ss in
-  let set_flags, ss = get_set_flags ss in
-  let name = String.concat "_" (List.rev ss) in
-  (name, set_flags, is_conditional, has_shift)
+let get_arm_prim s =
+  let s = String.lowercase_ascii s in
+  let is_conditional, s = get_is_conditional s in
+  let set_flags, s = get_set_flags s in
+  (s, set_flags, is_conditional)
 
-let tt_prim asmOp id =
-  let {L.pl_loc= loc; L.pl_desc= s} = id in
-  let name, set_flags, is_conditional, has_shift = get_arm_prim s in
+let tt_prim asmOp id args =
+  let { L.pl_loc = loc; L.pl_desc = s; } = id in
+  let name, set_flags, is_conditional = get_arm_prim s in
+  let has_shift, args = get_has_shift args in
   match List.assoc_opt name (prim_string asmOp) with
-  | Some (PrimARM pr) -> pr set_flags is_conditional has_shift
-  | _ -> rs_tyerror ~loc (UnknownPrim s)
+  | Some (PrimARM pr) -> (pr set_flags is_conditional has_shift, args)
+  | _ -> rs_tyerror ~loc (UnknownPrim name)
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
@@ -1668,7 +1669,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim asmOp f in
+      let p, args = tt_prim asmOp f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1678,7 +1679,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       ->
       let _, s = ct in
       assert (s = `Unsigned); (* FIXME *)
-      let p = tt_prim asmOp f in
+      let p, args = tt_prim asmOp f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1720,7 +1721,6 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
   | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
-      if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let env, i = tt_instr pd asmOp env (annot, L.mk_loc loc cpi) in
       let i, is =

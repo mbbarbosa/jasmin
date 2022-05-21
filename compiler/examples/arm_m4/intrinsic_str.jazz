@@ -1,0 +1,25 @@
+export
+fn str(reg u32 arg0, reg u32 arg1) {
+
+  [arg0] = #STR(arg0);
+  [arg0 + 2] = #STR(arg0);
+  [arg0 + arg1] = #STR(arg0);
+  [arg0 + (arg1 * 1)] = #STR(arg0);
+  [arg0 + (arg1 * 2)] = #STR(arg0);
+  [arg0 + (arg1 * 4)] = #STR(arg0);
+  [arg0 + (arg1 * 8)] = #STR(arg0);
+
+  reg bool n, z, v, c;
+  n, z, c, v, _ = #MOVS(arg0);
+
+  [arg0] = #STRcc(arg0, n, [arg0]);
+  [arg0] = #STRcc(arg0, n, [arg0]);
+  [arg0 + 2] = #STRcc(arg0, z, [arg0 + 2]);
+  [arg0 + 2] = #STRcc(arg0, z, [arg0 + 2]);
+  [arg0 + arg1] = #STRcc(arg0, c, [arg0 + arg1]);
+  [arg0 + arg1] = #STRcc(arg0, c, [arg0 + arg1]);
+  [arg0 + (arg1 * 1)] = #STRcc(arg0, v, [arg0 + (arg1 * 1)]);
+  [arg0 + (arg1 * 2)] = #STRcc(arg0, v, [arg0 + (arg1 * 2)]);
+  [arg0 + (arg1 * 4)] = #STRcc(arg0, n, [arg0 + (arg1 * 4)]);
+  [arg0 + (arg1 * 8)] = #STRcc(arg0, n, [arg0 + (arg1 * 8)]);
+}

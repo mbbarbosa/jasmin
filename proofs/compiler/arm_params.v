@@ -31,9 +31,8 @@ Unset Printing Implicit Defensive.
 (* Stack alloc parameters. *)
 
 Definition addi x tag y ofs :=
-  let opts := default_opts reg_size in
   let eofs := Papp1 (Oword_of_int reg_size) (Pconst ofs) in
-  Copn [:: x ] tag (Oarm (ARM_op ADD opts)) [:: y; eofs ].
+  Copn [:: x ] tag (Oarm (ARM_op ADD default_opts)) [:: y; eofs ].
 
 Definition arm_mov_ofs
   (x : lval) tag (_ : vptr_kind) (y : pexpr) (ofs : Z) : option instr_r :=
@@ -48,31 +47,38 @@ Definition arm_saparams : stack_alloc_params :=
 (* Linearization parameters. *)
 
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
-  let opts := default_opts reg_size in
   let rspg := Gvar rspi Slocal in
   let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD opts), [:: Pvar rspg; esz ]).
+  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
-  let opts := default_opts reg_size in
   let rspg := Gvar rspi Slocal in
   let esz := Papp1 (Oword_of_int reg_size) (Pconst (-sz)) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD opts), [:: Pvar rspg; esz ]).
+  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=
-  let opts := default_opts reg_size in
   let p0 := Pvar (Gvar rspi Slocal) in
   let p1 := Papp1 (Oword_of_int reg_size) (Pconst (- wsize_size al)) in
-  ([:: Lvar rspi ], Oarm (ARM_op AND opts), [:: p0; p1 ]).
+  ([:: Lvar rspi ], Oarm (ARM_op AND default_opts), [:: p0; p1 ]).
 
-Definition arm_lassign (x : lval) (ws : wsize) (e : pexpr) :=
-  if ws is U32
-  then ([:: x ], Oarm (ARM_op MOV (default_opts reg_size)), [:: e ])
-  else TODO_ARM. (* TODO_ARM: Make this an option and update linearize? *)
+Definition arm_lassign (x : lval) (_ : wsize) (e : pexpr) :=
+  let mn :=
+    match x with
+    | Lvar _ =>
+        if e is Pload _ _ _
+        then LDR
+        else MOV
+    | Lmem _ _ _ =>
+        STR
+    | _ =>
+        TODO_ARM "arm_lassign"
+    end
+  in
+  ([:: x ], Oarm (ARM_op mn default_opts), [:: e ]).
 
 Definition arm_liparams : linearization_params :=
   {|
-    lip_tmp := "r0"%string;
+    lip_tmp := "r12"%string; (* TODO_ARM: Review. *)
     lip_allocate_stack_frame := arm_allocate_stack_frame;
     lip_free_stack_frame := arm_free_stack_frame;
     lip_ensure_rsp_alignment := arm_ensure_rsp_alignment;
@@ -95,16 +101,8 @@ Definition arm_loparams : lowering_params fresh_vars lowering_options :=
 
 Definition assemble_cond ii (e : pexpr) : cexec condt :=
   match e with
-  | Pvar v =>
-      Let r := of_var_e ii (gv v) in
-      match r with
-      | NF => ok MI_ct
-      | ZF => ok EQ_ct
-      | CF => ok CS_ct
-      | VF => ok VS_ct
-      end
-
-  | _ => Error (E.berror ii e "Invalid condition.")
+  | Pvar v => Let r := of_var_e ii (gv v) in ok (condt_of_rflag r)
+  | _ => Error (E.berror ii e "Invalid condition.") (* TODO_ARM: Complete. *)
   end.
 
 Definition arm_agparams : asm_gen_params :=

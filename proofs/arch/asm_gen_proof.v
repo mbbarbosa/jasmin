@@ -78,6 +78,51 @@ Definition value_of_bool (b: exec bool) : exec value :=
   | Error e => Error e
   end.
 
+Lemma value_of_bool_bool eb b :
+  value_of_bool eb = ok (Vbool b)
+  -> eb = ok b.
+Proof.
+  case: eb.
+  - by move=> ? [<-].
+  by move=> [].
+Qed.
+
+Lemma value_of_bool_ErrAddrUndef eb :
+  value_of_bool eb = ok undef_b
+  -> eb = Error ErrAddrUndef.
+Proof.
+  case: eb.
+  - by move=> ? [].
+  by move=> [].
+Qed.
+
+Lemma value_uincl_to_bool_value_of_bool ve ve' eb b :
+  value_uincl ve ve'
+  -> to_bool ve = ok b
+  -> value_of_bool eb = ok ve'
+  -> eb = ok b.
+Proof.
+  move=> hincl hto_bool hof_bool.
+  have ? := to_boolI hto_bool; subst ve.
+  have ? := value_uinclE hincl; subst ve'.
+  exact: value_of_bool_bool hof_bool.
+Qed.
+
+(* Equivalent to [value_uincl_to_bool_value_of_bool], but stated as it is used
+   in proofs. *)
+Lemma value_of_bool_uincl ve eb b :
+  to_bool ve = ok b
+  -> (exists2 ve', value_of_bool eb = ok ve' & value_uincl ve ve')
+  -> eb = ok b.
+Proof.
+  move=> hto_bool [ve' hof_bool hincl].
+  exact: value_uincl_to_bool_value_of_bool hincl hto_bool hof_bool.
+Qed.
+
+Lemma value_of_bool_to_bool_of_rbool x :
+  value_of_bool (to_bool (of_rbool x)) = ok (of_rbool x).
+Proof. by case: x. Qed.
+
 (* -------------------------------------------------------------------- *)
 Lemma xgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
@@ -277,7 +322,17 @@ Lemma var_of_regP rip E m s r v ty vt:
       & of_val ty v' = ok vt.
 Proof. by move=> [???? h ???] /h /of_value_uincl h1 /h1 <-; eauto. Qed.
 
+
 Section EVAL_ASSEMBLE_COND.
+
+Definition get_rf (rf : rflagmap) (x : rflag) : exec bool :=
+  if rf x is Def b then ok b else undef_error.
+
+Definition get_rf_to_bool_of_rbool rf x :
+  get_rf rf x = to_bool (of_rbool (rf x)).
+Proof.
+  rewrite /get_rf. by case: (rf x).
+Qed.
 
 Context
   (eval_assemble_cond :
@@ -285,14 +340,8 @@ Context
        eqflags m rf
        -> agp_assemble_cond agparams ii e = ok c
        -> sem_pexpr [::] m e = ok v
-       -> let get x :=
-            if rf x is Def b
-            then ok b
-            else undef_error
-          in
-          exists2 v',
-            value_of_bool (eval_cond get c) = ok v'
-            & value_uincl v v').
+       -> exists2 v',
+            value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v').
 
 Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
   lom_eqv rip m s
@@ -622,13 +671,8 @@ Record h_asm_gen_params (agparams : asm_gen_params) :=
         eqflags m rf
         -> agp_assemble_cond agparams ii e = ok c
         -> sem_pexpr [::] m e = ok v
-        -> let get x :=
-             if rf x is Def b
-             then ok b
-             else undef_error
-           in
-           exists2 v',
-             value_of_bool (eval_cond get c) = ok v' & value_uincl v v';
+        -> exists2 v',
+             value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v';
 
     (* Converting [extra_op]s into [asm_op]s, assembling them and evaluating
        must be equivalent to computing their semantics. *)
@@ -1306,15 +1350,6 @@ Proof.
   - by rewrite /= (get_set_var _ ok_vm) -hx /= => /eqf.
 Qed.
 
-Lemma value_of_bool_uincl (vb : value) (ve : exec bool) (b : bool) :
-  to_bool vb = ok b
-  -> (exists2 v', value_of_bool ve = ok v' & value_uincl vb v')
-  -> ve = ok b.
-Proof.
-  move=> /to_boolI -> [v' + /value_uinclE ?]; subst.
-  by case: ve => [? [->]| []].
-Qed.
-
 Variant match_state
   (rip : var) (ls : lstate) (lc : lcmd) (xs : asm_state) : Prop :=
 | MS
@@ -1835,9 +1870,7 @@ Definition get_typed_reg_value (st : asmmem) (r : asm_typed_reg) : exec value :=
   | ARReg r => ok (Vword (asm_reg  st r))
   | ARegX r => ok (Vword (asm_regx st r))
   | AXReg r => ok (Vword (asm_xreg st r))
-  | ABReg r => if asm_flag st r is Def b
-               then ok (Vbool b)
-               else undef_error
+  | ABReg r => Let b := get_rf (asm_flag st) r in ok (Vbool b)
   end.
 
 Definition get_typed_reg_values st rs : exec values :=
@@ -1853,10 +1886,10 @@ Proof.
   all: repeat (rewrite get_var_vmap_set_vars_other_type; last done).
   + rewrite get_var_vmap_set_vars_other.
     + rewrite get_var_vmap_set_vars_finite //=; exact cenumP.
-    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.  
+    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
-  by rewrite get_var_vmap_set_vars_finite //=; [case: (asm_flag s r) | exact: cenumP].
+  by rewrite get_var_vmap_set_vars_finite //= /get_rf; [case: (asm_flag s r) | exact: cenumP].
 Qed.
 
 Definition estate_of_asm_mem

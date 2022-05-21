@@ -190,11 +190,23 @@ Proof.
   rewrite /eval_instr /=.
   rewrite /sem_sopn /=.
   rewrite to_estate_of_estate.
-  case: ws w htruncate hwrite => /= w htruncate hwrite.
-  1,2,4,5,6: exact: TODO_ARM.
   rewrite hsem {hsem} /=.
-  rewrite /exec_sopn /=.
-  rewrite htruncate {htruncate} /=.
+
+  (* TODO_ARM: Constraint: ws is U32 *)
+  have ? : ws = U32. exact: TODO_ARM_PROOF. subst ws.
+
+  (* TODO_ARM: Constraint: x is a register or memory location *)
+  case: x hwrite
+    => /= [? ? | x | al x off | ? ? ? ? | ? ? ? ? ?] hwrite.
+  1,4,5: exact: TODO_ARM_PROOF.
+
+  (* TODO_ARM: Constraint: if x is a register, e is a register or
+     memory location *)
+  - case: e => [||| y ||| al y off ||||] /=.
+    1,2,3,5,6,8,9,10,11: exact: TODO_ARM_PROOF.
+
+  all: rewrite /exec_sopn /=.
+  all: rewrite htruncate {htruncate} /=.
   all: by rewrite hwrite {hwrite} /=.
 Qed.
 
@@ -212,9 +224,9 @@ Definition arm_hliparams :
 Lemma arm_ok_lip_tmp :
   exists r : reg_t, of_string (lip_tmp (ap_lip arm_params)) = Some r.
 Proof.
-  exists R00.
+  exists R12.
   rewrite /=.
-  change "r0"%string with (to_string R00).
+  change "r12"%string with (to_string R12).
   exact: to_stringK.
 Qed.
 
@@ -247,7 +259,7 @@ Lemma arm_lower_callP
      in
      psem.sem_call lprog ev scs mem f va scs' mem' vr.
 Proof.
-  exact: (lower_callP _ _ (fv := fv)). (* TODO_ARM: Why do we need to specify fv? *)
+  exact: lower_callP.
 Qed.
 
 Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
@@ -261,32 +273,31 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
 
 Section ASM_GEN.
 
-(* FIXME: Is there a way of avoiding this import? *)
-Import arch_sem.
+Lemma condt_of_rflagP rf r :
+  eval_cond (get_rf rf) (condt_of_rflag r) = to_bool (of_rbool (rf r)).
+Proof.
+  rewrite -get_rf_to_bool_of_rbool. by case: r.
+Qed.
 
 Lemma arm_eval_assemble_cond ii m rf e c v :
   eqflags m rf
   -> agp_assemble_cond arm_agparams ii e = ok c
   -> sem_pexpr [::] m e = ok v
-  -> let get x :=
-       if rf x is Def b
-       then ok b
-       else undef_error
-    in
-    exists2 v',
-      value_of_bool (eval_cond get c) = ok v' & value_uincl v v'.
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
-  rewrite /arm_agparams /eval_cond /=.
-  case: e => //=.
-  move=> x eqf.
-  t_xrbindP=> r ok_r ok_c.
-  move=> ok_v.
+  rewrite /=.
+  case: e => //= x eqf.
+  t_xrbindP=> r ok_r <- ok_v.
   have := gxgetflag_ex eqf ok_r ok_v.
-  clear ok_r ok_v.
-  case: r ok_c => -[<-] hr /=.
-  all: eexists; last exact: hr.
-  all: by case: (rf _).
+  change arm_sem.eval_cond with eval_cond.
+  rewrite condt_of_rflagP => hincl.
+  eexists; last exact: hincl.
+  exact: value_of_bool_to_bool_of_rbool.
 Qed.
+
+(* TODO_ARM: Is there a way of avoiding importing here? *)
+Import arch_sem.
 
 Lemma arm_assemble_extra_op rip ii op lvs args op' lvs' args' op'' asm_args m m' s :
   sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
@@ -318,7 +329,7 @@ Proof.
   move=> [[]] //.
   move=> [] //.
   move=> [] //.
-  move=> [ws [] [] [?|]] // _.
+  move=> [[] [] [?|]] // _.
   rewrite /exec_sopn /=.
   t_xrbindP=> w w'.
   move=> hvx.

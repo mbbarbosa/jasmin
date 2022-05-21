@@ -616,6 +616,7 @@ Proof.
     rewrite get_varE; t_xrbindP => /= b ok_b ?; subst v.
     have := F r b.
     rewrite /= ok_b => /(_ erefl).
+    rewrite /get_rf.
     by case: (asm_flag xm' r) => // _ <-; exists b.
   case => res'' ok_res'' res'_res''.
   exists xm', res''; split => //.

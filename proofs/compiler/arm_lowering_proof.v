@@ -169,7 +169,6 @@ Proof.
   all: cycle 1.
 
   all: case: ws hws hwrite hop => //= hws hwrite [?]; subst op.
-  1,2,4,5,6,8,9,10,12: exact: TODO_ARM. (* Not implemented yet. *)
   all: rewrite /exec_sopn /sopn_sem /=.
   all: rewrite /truncate_word.
 
@@ -192,7 +191,6 @@ Proof.
   rewrite /lower_Pvar.
   case: is_var_in_memory.
   all: case: ws hws => //= hws [? ?]; subst aop es.
-  1,2,4: exact: TODO_ARM. (* Not implemented yet. *)
   all: rewrite /= hget {hget} /=.
   all: eexists; first reflexivity.
   all: rewrite /exec_sopn /=.
@@ -213,7 +211,6 @@ Proof.
   move=> wres hread ?; subst ws'.
   move=> [?]; subst wres.
   case: ws w hread => // w hread [? ?]; subst aop es.
-  1,2,4: exact: TODO_ARM. (* Not implemented yet. *)
   all: rewrite /sem_pexprs /=.
   all: rewrite hget {hget} /=.
   all: rewrite hsem {hsem} /=.
@@ -226,7 +223,7 @@ Qed.
 Lemma lower_Papp1P s op e ws ws' (w : word ws') aop es :
   (ws <= ws')%CMP
   -> sem_pexpr (p_globs p) s (Papp1 op e) = ok (Vword w)
-  -> lower_Papp1 op e = Some (aop, es)
+  -> lower_Papp1 ws op e = Some (aop, es)
   -> exists2 vs,
        sem_pexprs (p_globs p) s es = ok vs
        & exec_sopn (Oarm aop) vs = ok [:: Vword (zero_extend ws w) ].
@@ -235,46 +232,46 @@ Proof.
   rewrite /sem_pexpr /= -/(sem_pexpr _ s e).
   t_xrbindP.
   move=> v hsem hw.
-  exact: TODO_ARM. (* Not implemented yet. *)
+
+  rewrite /lower_Papp1.
+  by case: ws hws.
 Qed.
 
-Lemma help z :
-  (z < 33)%Z
-  -> wunsigned (wand (zero_extend U8 (wrepr U32 z)) (x86_shift_mask U32))
-     = wunsigned (zero_extend U8 (wrepr U32 z)).
+Lemma get_arg_shiftP_aux z :
+  (0 <= z <= 31)%Z
+  -> wunsigned (wand (wrepr U8 z) (wrepr U8 31)) = wunsigned (wrepr U8 z).
 Proof.
-  exact: TODO_ARM. (* Is this necessary? How to do this? *)
+  move=> hrange.
+  change 31%Z with (2 ^ Z.of_nat 5 - 1)%Z.
+  rewrite wand_modulo.
+  rewrite wunsigned_repr_small.
+  - apply Z.mod_small. lia.
+  change (wbase U8) with 256%Z.
+  lia.
 Qed.
 
 Lemma get_arg_shiftP s e ws ws0 (w : word ws0) e' sh n :
   sem_pexpr (p_globs p) s e = ok (Vword w)
   -> get_arg_shift ws e = Some (e', sh, n)
-  -> exists ws1 ws2 (wbase : word ws1) (sham : Z),
-       let wsham := wrepr ws2 sham in
+  -> exists ws1 (wbase : word ws1) (wsham : word U8),
        [/\ (ws <= ws1)%CMP
-         , (ws <= ws2)%CMP (* We don't use this because for arm this operand is
-                              always a u8. *)
          , sem_pexpr (p_globs p) s e' = ok (Vword wbase)
          , sem_pexpr (p_globs p) s n = ok (Vword wsham)
-         & w = shift_op
-                 sh
-                 (zero_extend ws0 wbase)
-                 (wunsigned (zero_extend U8 wsham))
+         & w = shift_op sh (zero_extend ws0 wbase) (wunsigned wsham)
        ].
 Proof.
   case: e => // op.
   move=> [] //= gx.
   move=> [] //.
-  move=> [] // ws'.
+  move=> [[]||||||] //.
   move=> [] // z.
 
   rewrite /=.
   t_xrbindP=> vbase hget hsem.
 
   case: ws w hsem => // w hsem.
-  case: op hsem => // [[] | [|[]] | [|[]]] //=.
-  all: move=> hsem.
-  all: case: ifP => // /andP [] /eqP ? /andP [] /ZleP hlo /ZltP hhi; subst ws'.
+  case: op hsem => // [[] | [|[]] | [|[]]] //= hsem.
+  all: case: ifP => // /andP [] /ZleP hlo /ZleP hhi.
   all: move=> [? ? ?]; subst e' sh n.
   all: rewrite /sem_pexpr /=.
   all: rewrite hget {hget} /=.
@@ -285,7 +282,7 @@ Proof.
   all: rewrite /mk_sem_sop2 /=.
   all: move=> [?] [?] [?]; subst wsham wres ws0.
   all: move=> [?]; subst w.
-  all: eexists; eexists; eexists; eexists; split.
+  all: eexists; eexists; eexists; split.
   all: try reflexivity.
   all: try done.
   all: match goal with
@@ -293,7 +290,8 @@ Proof.
        end.
   all: rewrite /sem_shift /=.
   all: f_equal.
-  all: apply help.
+  all: rewrite zero_extend_u.
+  all: apply get_arg_shiftP_aux.
   all: lia.
 Qed.
 
@@ -303,10 +301,10 @@ Lemma zero_extend_shift_op sh sz sz' (x : word sz') i :
 Proof.
   case: sh => /=.
   - exact: zero_extend_wshl.
-  - exact: TODO_ARM. (* Not implemented yet. *)
-  - exact: TODO_ARM. (* Not implemented yet. *)
-  - exact: TODO_ARM. (* Not implemented yet. *)
-  - exact: TODO_ARM. (* Not implemented yet. *)
+  - exact: TODO_ARM_PROOF.
+  - exact: TODO_ARM_PROOF.
+  - exact: TODO_ARM_PROOF.
+  - exact: TODO_ARM_PROOF.
 Qed.
 
 Lemma lower_Papp2P s op e0 e1 ws ws' (w : word ws') aop es :
@@ -341,7 +339,7 @@ Proof.
   1-2: rewrite /truncate_word hws0 hws1 /=.
   1-2: by rewrite zero_extend_u.
 
-  all: have [ws2 [ws3 [wbase [sham [hws2 _ hseme1' hsemn ?]]]]] :=
+  all: have [ws2 [wbase [wsham [hws2 hseme1' hsemn ?]]]] :=
          get_arg_shiftP hsem1 harg;
          subst w0.
   all: rewrite hseme1' {hseme1'} /=.
@@ -349,11 +347,9 @@ Proof.
   all: eexists; first reflexivity.
   all: rewrite /exec_sopn /=.
   all: rewrite /sopn_sem /=.
-  all: rewrite /truncate_word hws0 hws2 wsize_le_U8 {hws0 hws2} /=.
-  all: rewrite /drop_semi_nzcv /=.
-  all: rewrite /mk_semi_shifted /=.
+  all: rewrite /truncate_word hws0 hws2 {hws0 hws2} /=.
   all: rewrite (zero_extend_shift_op _ _ _ hws1).
-  all: rewrite zero_extend_u.
+  all: rewrite !zero_extend_u.
   all: by rewrite (zero_extend_idem _ hws1).
 Qed.
 
@@ -394,7 +390,7 @@ Proof.
   case: b hw.
   all: move=> -[?]; subst ws.
   all: move=> -[?]; subst w.
-  all: exact: TODO_ARM. (* How to continue? *)
+  all: exact: TODO_ARM_PROOF. (* How to continue? *)
 Qed.
 
 Lemma sem_i_lower_pexpr s0 s0' s1' ws ws' e aop es (w : word ws') lv tag :
@@ -434,7 +430,7 @@ Proof.
   case: ifP => // /eqP ? hlower; subst ws0.
 
  (* Is this the way? *)
-  have := lower_PifP TODO_ARM hsem hlower.
+  have := lower_PifP TODO_ARM_PROOF hsem hlower.
   all: cycle 1.
 
   all: move=> [? hsem' hexec].
@@ -442,6 +438,36 @@ Proof.
   all: rewrite hexec {hexec} /=.
   all: by rewrite hwrite.
 Qed.
+
+Lemma lower_cassgnP s0 lv tag ty e v v' s0' s1' lvs op es :
+  sem_pexpr (p_globs p) s0 e = ok v
+  -> truncate_val ty v = ok v'
+  -> write_lval (p_globs p) lv v' s0' = ok s1'
+  -> eq_fv s0' s0
+  -> sem_i p' ev s0' (Cassgn lv tag ty e) s1'
+  -> lower_cassgn is_var_in_memory lv ty e = Some (lvs, op, es)
+  -> sem_i p' ev s0' (Copn lvs tag op es) s1'.
+Proof.
+  move=> hsem htruncate hwrite hs0' hassgn.
+  rewrite /lower_cassgn.
+  case: ty htruncate hassgn => [|||ws] // htruncate hasssgn.
+  move: htruncate.
+  rewrite /truncate_val.
+  t_xrbindP=> ?.
+  t_of_val.
+  move=> ?; subst v'.
+
+  case hlv: is_lval_in_memory.
+  - elim hlstore: lower_store => [[op' es']|] //.
+    move=> [? ? ?]. subst lvs op es.
+    exact: sem_i_lower_store _ hws hs0' hsem hwrite hlstore.
+  - elim hlpexpr: lower_pexpr => [[op' es']|] //.
+    move=> [? ? ?]. subst lvs op es.
+    exact: sem_i_lower_pexpr _ hws hs0' hsem hwrite hlpexpr.
+Qed.
+
+
+(* -------------------------------------------------------------------- *)
 
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
@@ -452,36 +478,22 @@ Proof.
   have [s1' [hwrite' hs1']] := eeq_exc_write_lval (fvars_empty _) hs0' hwrite.
   exists s1'.
   split; last exact: hs1'.
-  apply: sem_seq1.
-  apply: EmkI.
+  apply: sem_seq1. apply: EmkI.
 
-  have hasm_i : sem_i p' ev s0' (Cassgn lv tag ty e) s1'.
+  have hassgn : sem_i p' ev s0' (Cassgn lv tag ty e) s1'.
   - apply: Eassgn.
     + exact: eeq_exc_sem_pexpr (fvars_empty _) hs0' hsem.
     + exact: htruncate.
     + exact: hwrite'.
 
-  rewrite /lower_cassgn.
-
-  (* We only deal with words. *)
-  case: ty htruncate hasm_i => [|||ws] // htruncate hasm_i.
-
-  move: htruncate.
-  rewrite /truncate_val.
-  t_xrbindP=> ?.
-  t_of_val.
-  move=> ?; subst v'.
-
-  case hlv: is_lval_in_memory.
-  - elim hlstore: lower_store => [[op es]|] //.
-    exact: sem_i_lower_store _ hws hs0' hsem hwrite' hlstore.
-  - elim hlpexpr: lower_pexpr => [[op es]|] //.
-    exact: sem_i_lower_pexpr _ hws hs0' hsem hwrite' hlpexpr.
+  case h : lower_cassgn => [[[lvs op] es]|].
+  - exact: lower_cassgnP hsem htruncate hwrite' hs0' hassgn h.
+  - exact: hassgn.
 Qed.
 
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move=> s0 s1 tag op ls es hsem.
+  move=> s0 s1 tag op lvs es hsem.
   move=> ii s0' hs0'.
   rewrite /=.
 

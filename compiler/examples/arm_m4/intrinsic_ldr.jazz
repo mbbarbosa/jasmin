@@ -1,0 +1,27 @@
+export
+fn ldr(reg u32 arg) -> reg u32 {
+  reg u32 x;
+
+  x = #LDR([arg]);
+  x = #LDR([x + 2]);
+  x = #LDR([x + arg]);
+  x = #LDR([x + (arg * 1)]);
+  x = #LDR([x + (arg * 2)]);
+  x = #LDR([x + (arg * 4)]);
+  x = #LDR([x + (arg * 8)]);
+
+  reg bool n, z, v, c;
+  n, z, c, v, x = #MOVS(x);
+
+  x = #LDRcc([arg], n, x);
+  x = #LDRcc([x + 2], z, x);
+  x = #LDRcc([x + arg], c, x);
+  x = #LDRcc([x + (arg * 1)], v, x);
+  x = #LDRcc([x + (arg * 2)], v, x);
+  x = #LDRcc([x + (arg * 4)], n, x);
+  x = #LDRcc([x + (arg * 8)], n, x);
+
+  reg u32 res;
+  res = x;
+  return res;
+}

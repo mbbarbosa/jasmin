@@ -41,14 +41,11 @@ Definition wsize_of_stype (ty : stype) : wsize :=
 Definition get_arg_shift
   (ws : wsize) (e : pexpr) : option (pexpr * shift_kind * pexpr) :=
   if e is
-    Papp2 op ((Pvar _) as v) ((Papp1 (Oword_of_int ws') (Pconst z)) as n)
+    Papp2 op ((Pvar _) as v) ((Papp1 (Oword_of_int U8) (Pconst z)) as n)
   then
     if shift_of_sop2 ws op is Some sh
     then
-      (* TODO_ARM: Where to check this? *)
-      if (ws == ws') && (check_shift_amount sh z)
-      then Some (v, sh, n)
-      else None
+      if check_shift_amount sh z then Some (v, sh, n) else None
     else
       None
   else
@@ -68,14 +65,13 @@ Notation lowered_pexpr := (option (arm_op * seq pexpr)).
      + a register.
      + a stack variable. *)
 Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
-  let opts := default_opts ws in
   let omn :=
     if is_var_in_memory (gv v)
     then load_op_of_wsize ws
     else if ws is U32 then Some MOV else None
   in
   if omn is Some mn
-  then Some (ARM_op mn opts, [:: Pvar v ])
+  then Some (ARM_op mn default_opts, [:: Pvar v ])
   else None.
 
 
@@ -88,16 +84,15 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
      + a register.
      + an immediate. *)
 Definition lower_Pload (ws : wsize) (v : var_i) (e : pexpr) : lowered_pexpr :=
-  let opts := default_opts ws in
   if load_op_of_wsize ws is Some op
-  then Some (ARM_op op opts, [:: Pload ws v e ])
+  then Some (ARM_op op default_opts, [:: Pload ws v e ])
   else None.
 
 
 (*** Lowering of [Papp1]. *)
 
-Definition lower_Papp1 (op : sop1) (e : pexpr) : lowered_pexpr :=
-  TODO_ARM.
+Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
+  if ws is U32 then None else None. (* TODO_ARM: Complete. *)
 
 
 (*** Lowering of [Papp2]. *)
@@ -128,12 +123,7 @@ Definition lower_Papp2 (ws : wsize) (op : sop2) (a b : pexpr) : lowered_pexpr :=
   if lower_Papp2_op ws op is Some mn
   then
     let opts :=
-      {|
-        args_size := ws;
-        set_flags := false;
-        is_conditional := false;
-        has_shift := osh;
-      |}
+      {| set_flags := false; is_conditional := false; has_shift := osh; |}
     in
     Some (ARM_op mn opts, es)
   else
@@ -166,7 +156,7 @@ Fixpoint lower_pexpr (ws : wsize) (e : pexpr) : lowered_pexpr :=
       else None
 
   | Papp1 op e =>
-      lower_Papp1 op e
+      lower_Papp1 ws op e
 
   | Papp2 op a b =>
       lower_Papp2 ws op a b
@@ -194,13 +184,12 @@ Fixpoint lower_pexpr (ws : wsize) (e : pexpr) : lowered_pexpr :=
 Definition lower_store (ws : wsize) (e : pexpr) : lowered_pexpr :=
   if store_op_of_wsize ws is Some op
   then
-    let opts := default_opts ws in
     let args :=
       match e with
       | Pvar _ =>
-          Some (opts, [:: e ])
+          Some (default_opts, [:: e ])
       | Pif _ c e0 e1 =>
-          Some (set_is_conditional opts, [:: e0; c; e1 ])
+          Some (set_is_conditional default_opts, [:: e0; c; e1 ])
       | _ =>
           None
       end

@@ -20,6 +20,9 @@ Extraction Inline Datatypes.implb.
 Extract Constant strings.ascii_beq => "Char.equal".
 Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
 
+Extract Constant arm_decl.TODO_ARM =>
+  "fun s -> failwith (""TODO_ARM: "" ^ (Conv.string_of_string0 s))".
+
 Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
