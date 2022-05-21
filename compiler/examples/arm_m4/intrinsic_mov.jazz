@@ -1,38 +1,43 @@
 export
-fn mov(reg u32 arg) -> reg u32 {
-  reg u32 x;
+fn mov() -> reg u32 {
+  reg u32 x y;
+  y = #MOV(1);
 
-  x = #MOV(arg);
+  x = #MOV(y);
 
   // Set flags.
   reg bool n, z, v, c;
   n, z, c, v, x = #MOVS(x);
+  n, z, c, v, _ = #MOVS(1);
 
   // Conditions.
-  x = #MOVcc(arg, z, x); // EQ
-  x = #MOVcc(arg, z, x); // NE
-  x = #MOVcc(arg, c, x); // CS
-  x = #MOVcc(arg, c, x); // CC
-  x = #MOVcc(arg, n, x); // MI
-  x = #MOVcc(arg, n, x); // PL
-  x = #MOVcc(arg, v, x); // VS
-  x = #MOVcc(arg, v, x); // VC
+  x = #MOVcc(y, z, x);  // EQ
+  x = #MOVcc(y, !z, x); // NE
+  x = #MOVcc(y, c, x);  // CS
+  x = #MOVcc(y, !c, x); // CC
+  x = #MOVcc(y, n, x);  // MI
+  x = #MOVcc(y, !n, x); // PL
+  x = #MOVcc(y, v, x);  // VS
+  x = #MOVcc(y, !v, x); // VC
+
+  x = #MOVcc(1, !z, x);
 
   // Should not be in an IT block.
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, v, x);
+  x = #MOVcc(y, z, x);
+  x = #MOVcc(y, v, x);
 
   // Should be in two IT blocks.
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
-  x = #MOVcc(arg, z, x);
+  x = #MOVcc(y, z, x);
+  x = #MOVcc(y, !z, x);
+  x = #MOVcc(3, !z, x);
+  x = #MOVcc(8, z, x);
+  x = #MOVcc(y, !z, x);
+  x = #MOVcc(98, z, x);
+  x = #MOVcc(y, !z, x);
+  x = #MOVcc(1, z, x);
 
-  n, z, c, v, x = #MOVScc(arg, z, n, z, c, v, x);
+  n, z, c, v, x = #MOVScc(y, z, n, z, c, v, x);
+  n, z, c, v, x = #MOVScc(49, z, n, z, c, v, x);
 
   reg u32 res;
   res = x;

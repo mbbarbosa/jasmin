@@ -3,6 +3,10 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
   reg u32 x;
   x = #AND(arg0, arg1);
 
+  // Immediates.
+  x = #AND(x, 1);
+  x = #AND(x, -1);
+
   // Shifts.
   x = #AND(x, arg0, #LSL(0));
   x = #AND(x, arg0, #LSL(31));
@@ -17,17 +21,20 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
   // Set flags.
   reg bool n, z, v, c;
   n, z, c, v, x = #ANDS(x, arg0);
+  n, z, c, v, x = #ANDS(x, 1);
   n, z, c, v, x = #ANDS(x, arg0, #LSL(3));
 
   // Conditions.
-  x = #ANDcc(x, arg0, z, x); // EQ
-  x = #ANDcc(x, arg0, z, x); // NE
-  x = #ANDcc(x, arg0, c, x); // CS
-  x = #ANDcc(x, arg0, c, x); // CC
-  x = #ANDcc(x, arg0, n, x); // MI
-  x = #ANDcc(x, arg0, n, x); // PL
-  x = #ANDcc(x, arg0, v, x); // VS
-  x = #ANDcc(x, arg0, v, x); // VC
+  x = #ANDcc(x, arg0, z, x);  // EQ
+  x = #ANDcc(x, arg0, !z, x); // NE
+  x = #ANDcc(x, arg0, c, x);  // CS
+  x = #ANDcc(x, arg0, !c, x); // CC
+  x = #ANDcc(x, arg0, n, x);  // MI
+  x = #ANDcc(x, arg0, !n, x); // PL
+  x = #ANDcc(x, arg0, v, x);  // VS
+  x = #ANDcc(x, arg0, !v, x); // VC
+
+  x = #ANDcc(x, 1, c, x);
 
   // Should not be in an IT block.
   x = #ANDcc(x, arg0, z, x);
@@ -35,15 +42,16 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
   // Should be in two IT blocks.
   x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, z, x);
+  x = #ANDcc(x, 1, !z, x);
+  x = #ANDcc(x, arg0, !z, x);
+  x = #ANDcc(x, 5, z, x);
+  x = #ANDcc(x, arg0, !z, x);
+  x = #ANDcc(x, 43, z, x);
+  x = #ANDcc(x, 46, !z, x);
   x = #ANDcc(x, arg0, z, x);
 
   n, z, c, v, x = #ANDScc(x, arg0, z, n, z, c, v, x);
+  n, z, c, v, x = #ANDScc(x, 2, z, n, z, c, v, x);
   x = #ANDcc(x, arg0, #LSL(3), z, x);
   n, z, c, v, x = #ANDScc(x, arg0, #LSL(3), z, n, z, c, v, x);
 

@@ -16,14 +16,14 @@ fn ldr(reg u32 arg) -> reg u32 {
   n, z, c, v, _ = #MOVS(x);
 
   // Conditions.
-  x = [x] if z; // EQ
-  x = [x] if z; // NE
-  x = [x] if c; // CS
-  x = [x] if c; // CC
-  x = [x] if n; // MI
-  x = [x] if n; // PL
-  x = [x] if v; // VS
-  x = [x] if v; // VC
+  x = [x] if z;  // EQ
+  x = [x] if !z; // NE
+  x = [x] if c;  // CS
+  x = [x] if !c; // CC
+  x = [x] if n;  // MI
+  x = [x] if !n; // PL
+  x = [x] if v;  // VS
+  x = [x] if !v; // VC
 
   // Should not be in an IT block.
   x = [x] if z;
@@ -31,12 +31,12 @@ fn ldr(reg u32 arg) -> reg u32 {
 
   // Should be in two IT blocks.
   x = [x] if z;
-  x = [x + arg] if z;
-  x = [x + (arg * 4)] if z;
+  x = [x + arg] if !z;
+  x = [x + (arg * 4)] if !z;
   x = [x + 2] if z;
-  x = [x + (arg * 4)] if z;
+  x = [x + (arg * 4)] if !z;
   x = [x] if z;
-  x = [x + (x * 8)] if z;
+  x = [x + (x * 8)] if !z;
   x = [x] if z;
 
   reg u32 res;

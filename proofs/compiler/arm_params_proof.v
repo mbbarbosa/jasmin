@@ -279,6 +279,25 @@ Proof.
   rewrite -get_rf_to_bool_of_rbool. by case: r.
 Qed.
 
+Lemma not_condtP c rf b :
+  eval_cond rf c = ok b
+  -> eval_cond rf (not_condt c) = ok (negb b).
+Proof.
+  case: c => /=.
+
+  (* These conditions corresponds to a single flag. *)
+  all: try by move ->.
+
+  (* These correspond to a combination of flags.
+     Introduce them and case on their values. *)
+  all: t_xrbindP.
+  all: repeat
+         match goal with
+           [ |- forall (_ : bool), _ -> _ ] => move=> [] ->
+         end.
+  all: by move=> <-.
+Qed.
+
 Lemma arm_eval_assemble_cond ii m rf e c v :
   eqflags m rf
   -> agp_assemble_cond arm_agparams ii e = ok c
@@ -287,13 +306,24 @@ Lemma arm_eval_assemble_cond ii m rf e c v :
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /=.
-  case: e => //= x eqf.
-  t_xrbindP=> r ok_r <- ok_v.
-  have := gxgetflag_ex eqf ok_r ok_v.
+  elim: e c v => [||| x |||| op1 e hind |||] //= c v eqf.
+
+  - t_xrbindP=> r ok_r <- ok_v.
+    have := gxgetflag_ex eqf ok_r ok_v.
+    change arm_sem.eval_cond with eval_cond.
+    rewrite condt_of_rflagP => hincl.
+    eexists; last exact: hincl.
+    exact: value_of_bool_to_bool_of_rbool.
+
+  case: op1 => //.
+  t_xrbindP=> c' ok_c' <- ve ok_ve.
+  have hv' := hind _ _ eqf ok_c' ok_ve.
+  rewrite /sem_sop1 /=.
+  t_xrbindP=> b ok_b <-.
+  have := value_of_bool_uincl ok_b hv'.
   change arm_sem.eval_cond with eval_cond.
-  rewrite condt_of_rflagP => hincl.
-  eexists; last exact: hincl.
-  exact: value_of_bool_to_bool_of_rbool.
+  move=> /not_condtP ->.
+  by eexists; first by reflexivity.
 Qed.
 
 (* TODO_ARM: Is there a way of avoiding importing here? *)

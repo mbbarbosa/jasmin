@@ -92,8 +92,10 @@ Definition lower_Pload (ws : wsize) (v : var_i) (e : pexpr) : lowered_pexpr :=
 (*** Lowering of [Papp1]. *)
 
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
-  if ws is U32 then None else None. (* TODO_ARM: Complete. *)
-
+  match ws, op with
+  | U32, Oword_of_int U32 => Some (ARM_op MOV default_opts, [:: Papp1 op e ])
+  | _, _ => None
+  end.
 
 (*** Lowering of [Papp2]. *)
 
@@ -218,6 +220,20 @@ Definition lower_cassgn
 
 (* -------------------------------------------------------------------- *)
 
+(* TODO_ARM: Complete. *)
+(* Refine expressions passed to architecture-specific operations. *)
+Definition lower_copn
+  (lvs : lvals) (op : sopn) (es : seq pexpr) : option (lvals * sopn * pexprs) :=
+  match op with
+  | Oasm (BaseOp (None, ARM_op mn opts)) =>
+      if mn \in data_mnemonics
+      then Some (lvs, op, es)
+      else None
+  | _ => None
+  end.
+
+(* -------------------------------------------------------------------- *)
+
 Definition fresh_vars := unit.
 Definition lowering_options := unit.
 
@@ -240,8 +256,13 @@ Fixpoint lower_i (i : instr) : cmd :=
       in
       [:: MkI ii ir' ]
 
-  | Copn _ _ _ _ =>
-      [:: i ]
+  | Copn lvs tag op es =>
+      let ir' :=
+        if lower_copn lvs op es is Some (lvs', op', es')
+        then Copn lvs' tag op' es'
+        else ir
+      in
+      [:: MkI ii ir' ]
 
   | Cif e c1 c2  =>
       let '(pre, e') := lower_condition xH e in

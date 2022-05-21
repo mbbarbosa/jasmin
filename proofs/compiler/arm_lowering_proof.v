@@ -234,7 +234,17 @@ Proof.
   move=> v hsem hw.
 
   rewrite /lower_Papp1.
-  by case: ws hws.
+  case: ws hws => // hws'.
+  case: op hw => [[]||||||] // hw [? ?]. subst aop es.
+
+  rewrite /=.
+  rewrite hsem {hsem} /=.
+  rewrite hw {hw} /=.
+
+  eexists; first reflexivity.
+
+  rewrite /exec_sopn /=.
+  by rewrite /truncate_word hws' {hws'}.
 Qed.
 
 Lemma get_arg_shiftP_aux z :
@@ -469,6 +479,23 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 
+Lemma lower_copnP s0' s1' lvs tag op es lvs' op' es' :
+  sem_i p' ev s0' (Copn lvs tag op es) s1'
+  -> lower_copn lvs op es = Some (lvs', op', es')
+  -> sem_i p' ev s0' (Copn lvs' tag op' es') s1'.
+Proof.
+  move=> hcopn.
+  rewrite /lower_copn.
+  case: op hcopn => // [[[[] aop]|]] //.
+  move: aop => [mn opts] hcopn.
+  case: ifP => // hmn.
+  move=> [? ? ?]. subst lvs' op' es'.
+  exact: hcopn.
+Qed.
+
+
+(* -------------------------------------------------------------------- *)
+
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
   move=> s0 s1 lv tag ty e v v' hsem htruncate hwrite.
@@ -504,11 +531,18 @@ Proof.
   have [s1' [hwrite1 hs1']] := eeq_exc_write_lvals (fvars_empty _) hs0' hwrite0.
   exists s1'.
   split; last exact: hs1'.
-  apply: sem_seq1. apply: EmkI. apply: Eopn.
-  rewrite /sem_sopn /=.
-  rewrite (eeq_exc_sem_pexprs (fvars_empty _) hs0' hsem) /=.
-  rewrite hexec /=.
-  exact: hwrite1.
+  apply: sem_seq1. apply: EmkI.
+
+  have hcopn : sem_i p' ev s0' (Copn lvs tag op es) s1'.
+  - apply Eopn.
+    rewrite /sem_sopn /=.
+    rewrite (eeq_exc_sem_pexprs (fvars_empty _) hs0' hsem) /=.
+    rewrite hexec /=.
+    exact: hwrite1.
+
+  case h : lower_copn => [[[lvs' op'] es']|].
+  - exact: lower_copnP hcopn h.
+  - exact: hcopn.
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.

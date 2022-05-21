@@ -1,35 +1,38 @@
 export
-fn mov(reg u32 arg) -> reg u32 {
-  reg u32 x;
-  x = arg;
+fn mov() -> reg u32 {
+  reg u32 x y;
+  x = 1;
+  y = x;
 
   // Set flags.
   reg bool n, z, v, c;
   n, z, c, v, _ = #MOVS(x);
 
   // Conditions.
-  x = arg if z; // EQ
-  x = arg if z; // NE
-  x = arg if c; // CS
-  x = arg if c; // CC
-  x = arg if n; // MI
-  x = arg if n; // PL
-  x = arg if v; // VS
-  x = arg if v; // VC
+  x = y if z;  // EQ
+  x = y if !z; // NE
+  x = y if c;  // CS
+  x = y if !c; // CC
+  x = y if n;  // MI
+  x = y if !n; // PL
+  x = y if v;  // VS
+  x = y if !v; // VC
+
+  x = 1 if c;
 
   // Should not be in an IT block.
-  x = arg if z;
-  x = arg if v;
+  x = y if z;
+  x = y if v;
 
   // Should be in two IT blocks.
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
-  x = arg if z;
+  x = y if z;
+  x = 1 if !z;
+  x = y if !z;
+  x = 5 if z;
+  x = y if !z;
+  x = 43 if z;
+  x = 46 if !z;
+  x = y if z;
 
   reg u32 res;
   res = x;
