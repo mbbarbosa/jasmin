@@ -99,11 +99,27 @@ Definition arm_loparams : lowering_params fresh_vars lowering_options :=
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
+Definition is_rflags_GE (r0 : rflag) (r1 : rflag) : bool :=
+  match r0, r1 with
+  | NF, VF => true
+  | VF, NF => true
+  | _, _ => false
+  end.
+
 Fixpoint assemble_cond ii (e : pexpr) : cexec condt :=
   match e with
-  | Pvar v => Let r := of_var_e ii (gv v) in ok (condt_of_rflag r)
-  | Papp1 Onot e => Let c := assemble_cond ii e in ok (not_condt c)
-  | _ => Error (E.berror ii e "Invalid condition.") (* TODO_ARM: Complete. *)
+  | Pvar v =>
+      Let r := of_var_e ii (gv v) in ok (condt_of_rflag r)
+  | Papp1 Onot e =>
+      Let c := assemble_cond ii e in ok (not_condt c)
+  | Papp2 Obeq (Pvar x0) (Pvar x1) =>
+      Let r0 := of_var_e ii (gv x0) in
+      Let r1 := of_var_e ii (gv x1) in
+      if is_rflags_GE r0 r1
+      then ok GE_ct
+      else Error (E.berror ii e "Invalid condition.")
+  | _ =>
+      Error (E.berror ii e "Invalid condition.") (* TODO_ARM: Complete. *)
   end.
 
 Definition arm_agparams : asm_gen_params :=
@@ -407,10 +423,9 @@ Lemma arm_eval_assemble_cond ii m rf e c v :
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /=.
-  elim: e c v => [||| x |||| op1 e hind |||] //= c v eqf.
+  elim: e c v => [||| x |||| op1 e hind | op2 e0 _ e1 _ ||] //= c v eqf.
 
-  - t_xrbindP=> r ok_r ok_c.
-    subst c.
+  - t_xrbindP=> r ok_r ok_c; subst c.
     move=> ok_v.
 
     have := gxgetflag_ex eqf ok_r ok_v.
@@ -424,24 +439,49 @@ Proof.
     clear v hincl.
     exact: value_of_bool_to_bool_of_rbool.
 
-  case: op1 => //.
-  t_xrbindP=> c' ok_c' ok_c.
-  subst c.
-  move=> ve ok_ve.
-  have hv' := hind _ _ eqf ok_c' ok_ve.
-  clear ii m e hind eqf ok_c' ok_ve.
+  - case: op1 => //.
+    t_xrbindP=> c' ok_c' ok_c; subst c.
+    move=> ve ok_ve.
+    have hv' := hind _ _ eqf ok_c' ok_ve.
+    clear ii m e hind eqf ok_c' ok_ve.
 
-  rewrite /sem_sop1 /=.
-  t_xrbindP=> b ok_b <-.
+    rewrite /sem_sop1 /=.
+    t_xrbindP=> b ok_b <-.
 
-  have := value_of_bool_uincl ok_b hv'.
-  clear v ve ok_b hv'.
+    have := value_of_bool_uincl ok_b hv'.
+    clear v ve ok_b hv'.
 
-  change arm_sem.eval_cond with eval_cond.
-  move=> /not_condtP ->.
+    change arm_sem.eval_cond with eval_cond.
+    move=> /not_condtP ->.
 
-  eexists; first reflexivity.
-  done.
+    by eexists.
+
+  case: op2 => //.
+  case: e0 => // x0.
+  case: e1 => // x1.
+
+  t_xrbindP=> r0 ok_r0 r1 ok_r1 //=.
+  case hGE : is_rflags_GE => //.
+  move=> [?]; subst c.
+  move=> v0 ok_v0 v1 ok_v1.
+
+  have hincl0 := gxgetflag_ex eqf ok_r0 ok_v0.
+  clear x0 ok_r0 ok_v0.
+  have hincl1 := gxgetflag_ex eqf ok_r1 ok_v1.
+  clear ii m eqf x1 ok_r1 ok_v1.
+
+  rewrite /sem_sop2 /=.
+  t_xrbindP=> b0 ok_b0 b1 ok_b1 ?; subst v.
+  have ? := to_boolI ok_b0; subst v0.
+  have ? := to_boolI ok_b1; subst v1.
+
+  rewrite 2!get_rf_to_bool_of_rbool.
+
+  move: r0 r1 hincl0 hincl1 hGE.
+  move=> [] [] // hincl0 hincl1 _.
+  all: rewrite (value_uincl_bool1 hincl0) {hincl0} /=.
+  all: rewrite (value_uincl_bool1 hincl1) {hincl1} /=.
+  all: by eexists.
 Qed.
 
 (* TODO_ARM: Is there a way of avoiding importing here? *)

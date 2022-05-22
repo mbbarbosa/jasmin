@@ -102,6 +102,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
 Definition lower_Papp2_op (ws : wsize) (op : sop2) : option arm_mnemonic :=
   match ws, op with
   | U32, Oadd (Op_w U32) => Some ADD
+  | U32, Osub (Op_w U32) => Some SUB
   | U32, Oland U32 => Some AND
   | _, _ => None
   end.

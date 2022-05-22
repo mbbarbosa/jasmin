@@ -1,0 +1,26 @@
+export
+fn memcmp(reg u32 p, reg u32 q, reg u32 len) -> reg u32 {
+  reg u32 res i;
+  reg u32 a b;
+  reg bool n, z, v;
+
+  res = 1;
+  i = 0;
+
+  while {
+    n, _, _, v, _ = #SUBS(i, len);
+  } (n != v) {
+    a = [p];
+    b = [q];
+
+    _, z, _, _, _ = #SUBS(a, b);
+    res = 0 if !z;
+
+    p += 4;
+    q += 4;
+    i += 1;
+  }
+
+  res = res;
+  return res;
+}

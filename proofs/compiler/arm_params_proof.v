@@ -306,7 +306,7 @@ Lemma arm_eval_assemble_cond ii m rf e c v :
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /=.
-  elim: e c v => [||| x |||| op1 e hind |||] //= c v eqf.
+  elim: e c v => [||| x |||| op1 e hind |||] //= c v eqf. 
 
   - t_xrbindP=> r ok_r <- ok_v.
     have := gxgetflag_ex eqf ok_r ok_v.

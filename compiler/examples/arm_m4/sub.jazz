@@ -1,0 +1,58 @@
+export
+fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
+  reg u32 x;
+  x = arg0 - arg1;
+
+  // Immediates.
+  x -= 1;
+  x -= -1;
+
+  // Shifts.
+  x -= arg0 << 0;
+  x -= arg0 << 31;
+  x -= arg0 >> 1;
+  x -= arg0 >> 31; // Should check 32.
+  x -= arg0 >>s 1;
+  x -= arg0 >>s 31; // Should check 32.
+  //x -= arg0 ROR 1;
+  //x -= arg0 ROR 31;
+  //x -= RRX arg0;
+
+  // Set flags.
+  reg bool n, z, v, c;
+  n, z, c, v, _ = #MOVS(x);
+
+  // Conditions.
+  x -= arg0 if z;  // EQ
+  x -= arg0 if !z; // NE
+  x -= arg0 if c;  // CS
+  x -= arg0 if !c; // CC
+  x -= arg0 if n;  // MI
+  x -= arg0 if !n; // PL
+  x -= arg0 if v;  // VS
+  x -= arg0 if !v; // VC
+
+  x -= 1 if c;
+
+  // Should not be in an IT block.
+  x -= arg0 if z;
+  x -= arg0 if v;
+
+  // Should be in two IT blocks.
+  x -= arg0 if z;
+  x -= 1 if !z;
+  x -= arg0 if !z;
+  x -= 5 if z;
+  x -= arg0 if !z;
+  x -= 43 if z;
+  x -= 46 if !z;
+  x -= arg0 if z;
+
+  x -= arg0 << 3 if c;
+  x -= arg0 >> 3 if c;
+  x -= arg0 >>s 3 if c;
+
+  reg u32 res;
+  res = x;
+  return res;
+}

@@ -663,6 +663,46 @@ Definition arm_ADD_instr : instr_desc_t :=
   then x
   else drop_nzcv x.
 
+Definition arm_SUB_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
+  let res :=
+    nzcvw_of_aluop
+      (wn - wm)
+      (wunsigned wn - wunsigned wm)%Z
+      (wsigned wn - wsigned wm)%Z
+  in
+  ok res.
+
+Definition arm_SUB_instr : instr_desc_t :=
+  let mn := SUB in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := sflags ++ [:: sreg ];
+      id_out := rflags_ad ++ [:: E 0 ];
+      id_semi := arm_SUB_semi;
+      id_nargs := 3;
+      id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+  in
+  let x :=
+    if has_shift opts is Some sk
+    then mk_shifted sk x (mk_semi_shifted sk (id_semi x))
+    else x
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
+
 Definition arm_AND_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
   let res := wand wn wm in
   ok (:: Some (NF_of_word res)
@@ -791,6 +831,7 @@ Definition mn_desc (mn : arm_mnemonic) (opts : arm_options) : instr_desc_t :=
   let desc :=
     match mn with
     | ADD => arm_ADD_instr
+    | SUB => arm_SUB_instr
     | AND => arm_AND_instr
     | MOV => arm_MOV_instr
     | LDR => arm_LDR_instr

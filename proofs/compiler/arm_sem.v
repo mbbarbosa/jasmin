@@ -44,10 +44,10 @@ Definition eval_cond (get: rflag -> result error bool) (c: condt) :
       Let nf := get NF in
       Let vf := get VF in
       ok (nf == vf)
-| LT_ct =>
-    Let nf := get NF in
-    Let vf := get VF in
-    ok (nf != vf)
+  | LT_ct =>
+      Let nf := get NF in
+      Let vf := get VF in
+      ok (nf != vf)
   | GT_ct =>
       Let zf := get ZF in
       Let nf := get NF in

@@ -235,7 +235,7 @@ Proof.
 
   rewrite /lower_Papp1.
   case: ws hws => // hws'.
-  case: op hw => [[]||||||] // hw [? ?]. subst aop es.
+  case: op hw => [[]||||||] // hw [? ?]; subst aop es.
 
   rewrite /=.
   rewrite hsem {hsem} /=.
@@ -317,6 +317,100 @@ Proof.
   - exact: TODO_ARM_PROOF.
 Qed.
 
+Lemma lower_Papp2P_unshifted s op e0 e1 ws ws' (w : word ws') v0 v1 aop es :
+  get_arg_shift ws e1 = None
+  -> sem_pexpr (p_globs p) s e0 = ok v0
+  -> sem_pexpr (p_globs p) s e1 = ok v1
+  -> sem_sop2 op v0 v1 = ok (Vword w)
+  -> lower_Papp2 ws op e0 e1 = Some (aop, es)
+  -> exists2 vs,
+       sem_pexprs (p_globs p) s es = ok vs
+       & exec_sopn (Oarm aop) vs = ok [:: Vword (zero_extend ws w) ].
+Proof.
+  move=> hshift hsem0 hsem1 hsemw.
+  rewrite /lower_Papp2.
+  rewrite hshift {hshift} /=.
+
+  (* TODO_ARM: This block is exactly the same in the shifted case. *)
+  (* The problem is that we can't add:
+     [to_word ws v0 = ok w0 -> to_word ws v1 = ok w1 -> sem_sop2_typed op w0 w1]
+     as a hypothesis because of the dependent type in [sem_sop2_typed]. *)
+  case: ws => //.
+  case: op hsemw => //.
+  all:
+    match goal with
+    | [ |- forall _ : op_kind, _ -> _ ] => move=> [|[]] //
+    | [ |- forall _ : wsize, _ -> _ ] => move=> [] //
+    end.
+  all: move=> hsemw [? ?]; subst aop es.
+  all: rewrite /=.
+  all: rewrite hsem0 {hsem0} /=.
+  all: have /= [w0 [w1 [w2 []]]] := sem_sop2I hsemw.
+  all: clear hsemw.
+  all: move=> /to_wordI [ws0 [w0' [hws0 ? ?]]]; subst v0 w0.
+  all: move=> /to_wordI [ws1 [w1' [hws1 ? ?]]]; subst v1 w1.
+  all: rewrite /mk_sem_sop2 /=.
+  all: move=> [?]; subst w2.
+  all: move=> /Vword_inj [?]; subst ws'.
+  all: move=> /= ?; subst w.
+
+  all: rewrite hsem1 {hsem1} /=.
+  all: eexists; first reflexivity.
+  all: rewrite /exec_sopn /=.
+  all: rewrite /truncate_word hws0 hws1 /=.
+  all: clear hws0 hws1.
+  all: by rewrite zero_extend_u.
+Qed.
+
+Lemma lower_Papp2P_shifted
+  s op e0 e1 v0 v1 ws ws' (w : word ws') aop es ebase sk esham :
+  get_arg_shift ws e1 = Some (ebase, sk, esham)
+  -> sem_pexpr (p_globs p) s e0 = ok v0
+  -> sem_pexpr (p_globs p) s e1 = ok v1
+  -> sem_sop2 op v0 v1 = ok (Vword w)
+  -> lower_Papp2 ws op e0 e1 = Some (aop, es)
+  -> exists2 vs,
+       sem_pexprs (p_globs p) s es = ok vs
+       & exec_sopn (Oarm aop) vs = ok [:: Vword (zero_extend ws w) ].
+Proof.
+  move=> hshift hsem0 hsem1 hsemw.
+  rewrite /lower_Papp2.
+  rewrite hshift.
+
+  case: ws hshift => // hshift.
+  case: op hsemw => //.
+  all:
+    match goal with
+    | [ |- forall _ : op_kind, _ -> _ ] => move=> [|[]] //
+    | [ |- forall _ : wsize, _ -> _ ] => move=> [] //
+    end.
+  all: move=> hsemw [? ?]; subst aop es.
+  all: rewrite /=.
+  all: rewrite hsem0 {hsem0} /=.
+  all: have /= [w0 [w1 [w2 []]]] := sem_sop2I hsemw.
+  all: clear hsemw.
+  all: move=> /to_wordI [ws0 [w0' [hws0 ? ?]]]; subst v0 w0.
+  all: move=> /to_wordI [ws1 [w1' [hws1 ? ?]]]; subst v1 w1.
+  all: rewrite /mk_sem_sop2 /=.
+  all: move=> [?]; subst w2.
+  all: move=> /Vword_inj [?]; subst ws'.
+  all: move=> /= ?; subst w.
+
+  all: have [ws2 [wbase [wsham [hws2 hbase hsham ?]]]] :=
+         get_arg_shiftP hsem1 hshift;
+         subst w1'.
+  all: clear hsem1 hshift.
+  all: rewrite hbase {hbase} /=.
+  all: rewrite hsham {hsham} /=.
+  all: eexists; first reflexivity.
+  all: rewrite /exec_sopn /=.
+  all: rewrite /sopn_sem /=.
+  all: rewrite /truncate_word hws0 hws2 {hws0 hws2} /=.
+  all: rewrite (zero_extend_shift_op _ _ _ hws1).
+  all: rewrite !zero_extend_u.
+  all: by rewrite (zero_extend_idem _ hws1).
+Qed.
+
 Lemma lower_Papp2P s op e0 e1 ws ws' (w : word ws') aop es :
   (ws <= ws')%CMP
   -> sem_pexpr (p_globs p) s (Papp2 op e0 e1) = ok (Vword w)
@@ -327,40 +421,11 @@ Lemma lower_Papp2P s op e0 e1 ws ws' (w : word ws') aop es :
 Proof.
   move=> hws.
   rewrite /sem_pexpr /= -!/(sem_pexpr _ s _).
-  t_xrbindP.
-  move=> v0 hsem0 v1 hsem1 hw.
-  rewrite /lower_Papp2.
-  elim harg: get_arg_shift => [[[e1' sh] n]|]; first last.
-  all: case: ws hws harg => hws harg.
-  all: case: op hw => //= [[|[]] | []] //.
-  all: move=> hw [<- <-] {aop es} /=.
-  all: rewrite hsem0 /=.
-  all: have /= [w0 [w1 [w2 []]]] := sem_sop2I hw.
-  all: t_of_val.
-  all: t_of_val.
-  all: rewrite /mk_sem_sop2 /=.
-  all: move=> [?] [?]; subst ws' w2.
-  all: move=> [?]; subst w.
+  t_xrbindP=> v0 hsem0 v1 hsem1 hsemw.
 
-  (* Non-shift case. *)
-  1-2: rewrite hsem1 /=.
-  1-2: exists [:: Vword w3; Vword w0 ]; first done.
-  1-2: rewrite /exec_sopn /=.
-  1-2: rewrite /truncate_word hws0 hws1 /=.
-  1-2: by rewrite zero_extend_u.
-
-  all: have [ws2 [wbase [wsham [hws2 hseme1' hsemn ?]]]] :=
-         get_arg_shiftP hsem1 harg;
-         subst w0.
-  all: rewrite hseme1' {hseme1'} /=.
-  all: rewrite hsemn {hsemn} /=.
-  all: eexists; first reflexivity.
-  all: rewrite /exec_sopn /=.
-  all: rewrite /sopn_sem /=.
-  all: rewrite /truncate_word hws0 hws2 {hws0 hws2} /=.
-  all: rewrite (zero_extend_shift_op _ _ _ hws1).
-  all: rewrite !zero_extend_u.
-  all: by rewrite (zero_extend_idem _ hws1).
+  case hshift: (get_arg_shift ws e1) => [[[ebase sk] esham]|].
+  - exact: lower_Papp2P_shifted hshift hsem0 hsem1 hsemw.
+  - exact: lower_Papp2P_unshifted hshift hsem0 hsem1 hsemw.
 Qed.
 
 Lemma lower_PifP s c e0 e1 ws ws0 (w : word ws0) aop es :
@@ -439,7 +504,7 @@ Proof.
   case: ty hsem => // ws0 hsem.
   case: ifP => // /eqP ? hlower; subst ws0.
 
- (* Is this the way? *)
+ (* TODO_ARM: Is this the way? *)
   have := lower_PifP TODO_ARM_PROOF hsem hlower.
   all: cycle 1.
 
@@ -469,10 +534,10 @@ Proof.
 
   case hlv: is_lval_in_memory.
   - elim hlstore: lower_store => [[op' es']|] //.
-    move=> [? ? ?]. subst lvs op es.
+    move=> [? ? ?]; subst lvs op es.
     exact: sem_i_lower_store _ hws hs0' hsem hwrite hlstore.
   - elim hlpexpr: lower_pexpr => [[op' es']|] //.
-    move=> [? ? ?]. subst lvs op es.
+    move=> [? ? ?]; subst lvs op es.
     exact: sem_i_lower_pexpr _ hws hs0' hsem hwrite hlpexpr.
 Qed.
 
@@ -489,7 +554,7 @@ Proof.
   case: op hcopn => // [[[[] aop]|]] //.
   move: aop => [mn opts] hcopn.
   case: ifP => // hmn.
-  move=> [? ? ?]. subst lvs' op' es'.
+  move=> [? ? ?]; subst lvs' op' es'.
   exact: hcopn.
 Qed.
 
