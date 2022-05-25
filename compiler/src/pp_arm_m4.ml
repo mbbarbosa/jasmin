@@ -142,19 +142,32 @@ let pp_syscall (o : Syscall_t.syscall_t) =
   match o with
   | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
+(* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
+   must be introduced *in addition* to conditional suffixes. *)
+let get_IT i =
+  match i with
+  | AsmOp (_, args) ->
+      begin
+        match List.opick (is_Condt arch) args with
+        | None -> []
+        | Some c -> [LInstr ("it", [pp_condt c])]
+      end
+  | _ ->
+      []
+
 let pp_instr tbl fn (_ : Format.formatter) i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM pp_instr align"
 
   | LABEL lbl ->
-      LLabel (pp_label fn lbl)
+      [LLabel (pp_label fn lbl)]
 
   | STORELABEL (dst, lbl) ->
-      LInstr ("adr", [pp_register dst; string_of_label fn lbl])
+      [LInstr ("adr", [pp_register dst; string_of_label fn lbl])]
 
   | JMP lbl ->
-      LInstr ("b", [pp_remote_label tbl lbl])
+      [LInstr ("b", [pp_remote_label tbl lbl])]
 
   | JMPI arg -> (* TODO_ARM: Review. *)
       let lbl =
@@ -162,23 +175,23 @@ let pp_instr tbl fn (_ : Format.formatter) i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      LInstr ("b", [lbl])
+      [LInstr ("b", [lbl])]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
-      LInstr (iname, [pp_label fn lbl])
+      [LInstr (iname, [pp_label fn lbl])]
 
   | JAL _ ->
       failwith "TODO_ARM pp_instr jal"
 
   | CALL lbl ->
-      LInstr ("bl", [pp_remote_label tbl lbl])
+      [LInstr ("bl", [pp_remote_label tbl lbl])]
 
   | POPPC ->
-      LInstr ("b", [pp_register LR])
+      [LInstr ("b", [pp_register LR])]
 
   | SysCall op ->
-      LInstr ("call", [pp_syscall op])
+      [LInstr ("call", [pp_syscall op])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
@@ -186,68 +199,12 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       let name = pp_mnemonic_ext op args in
       let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
       let args = pp_shift op args in
-      LInstr (name, args)
-
-
-(* -------------------------------------------------------------------- *)
-(* Add IT instructions. *)
-(* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
-   must be introduced *in addition* to conditional suffixes. *)
-
-let get_arm_i_cond x =
-  match x with
-  | AsmOp (_, args) -> List.opick (is_Condt arch) args
-  | _ -> None
-
-type it_instr =
-  | IT of condt * bool list
-  | NoIT of arm_asm_i
-
-let it_block_max_size = 4
-let it_str = "it"
-let pp_it_branch b = if b then "t" else "e"
-
-let add_IT cmd =
-  (* Get IT block where the code is [x :: xs].
-     If [x] is conditional, take at most [it_block_max_size - 1] following
-     conditional instructions, if their condition is the same as [x] or its
-     negation. *)
-  let split_IT x xs =
-    match get_arm_i_cond x with
-    | None ->
-        ([NoIT x], xs)
-    | Some c ->
-        let p y =
-          match get_arm_i_cond y with
-          | Some c' -> c' == c || c' == not_condt c
-          | None -> false
-        in
-        let pre, pos = List.span_at_most p (it_block_max_size - 1) xs in
-        let bs = List.map (fun x -> get_arm_i_cond x = Some c) pre in
-        let it_block = List.map (fun x -> NoIT x) (x :: pre) in
-        (IT (c, bs) :: it_block, pos)
-  in
-
-  let rec go acc rest =
-    match rest with
-    | [] -> acc
-    | x :: xs -> let xs0, xs1 = split_IT x xs in go (acc @ xs0) xs1
-  in
-
-  go [] cmd
-
-let pp_it_instr tbl fn fmt i =
-  match i with
-  | NoIT x ->
-      pp_instr tbl fn fmt x
-  | IT (c, bs) ->
-      let s = String.concat "" (it_str :: List.map pp_it_branch bs) in
-      LInstr (s, [pp_condt c])
+      get_IT i @ [LInstr (name, args)]
 
 
 (* -------------------------------------------------------------------- *)
 
-let pp_body tbl fn fmt cmd = List.map (pp_it_instr tbl fn fmt) (add_IT cmd)
+let pp_body tbl fn fmt cmd = List.concat_map (pp_instr tbl fn fmt) cmd
 
 
 (* -------------------------------------------------------------------- *)
@@ -260,7 +217,7 @@ let pp_fun tbl fmt (fn, fd) =
   let pre = if fd.asm_fd_export then [LLabel (mangle fn); LLabel fn] else [] in
   let body = pp_body tbl fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then [pp_instr tbl fn fmt POPPC] else [] in
+  let pos = if fd.asm_fd_export then pp_instr tbl fn fmt POPPC else [] in
   pre @ body @ pos
 
 let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
@@ -275,6 +232,6 @@ let pp_prog tbl fmt p =
   let data = pp_data p.asm_globs in
   headers @ code @ data
 
-let print_instr tbl s fmt i = print_asm_lines fmt [pp_instr tbl s fmt i]
+let print_instr tbl s fmt i = print_asm_lines fmt (pp_instr tbl s fmt i)
 
 let print_prog tbl fmt p = print_asm_lines fmt (pp_prog tbl fmt p)
