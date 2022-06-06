@@ -1,4 +1,5 @@
 open Arch_decl
+open Prog
 open Arm_decl
 
 module type Arm_input = sig
@@ -25,7 +26,17 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let lowering_vars _ = ()
+  let lowering_vars tbl =
+    let f ty n =
+      let v = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
+      Conv.cvar_of_var tbl v
+    in
+    {
+      Arm_lowering.fv_NF = (f tbool "NF").vname;
+      Arm_lowering.fv_ZF = (f tbool "ZF").vname;
+      Arm_lowering.fv_CF = (f tbool "CF").vname;
+      Arm_lowering.fv_VF = (f tbool "VF").vname;
+    }
 
   let lowering_opt = ()
 

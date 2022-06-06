@@ -1295,15 +1295,13 @@ let shift_kind_assoc =
 let get_has_shift args =
   let get_shift _ a =
     match a.L.pl_desc with
-    | S.PEPrim (id, [{ L.pl_desc = S.PEInt _ } as sham]) ->
+    | S.PEPrim (id, [ ({ L.pl_desc = S.PEInt _ } as sham) ]) -> begin
         let s = String.lowercase_ascii id.pl_desc in
-        begin
-          match List.assoc_opt s shift_kind_assoc with
-          | Some sk -> Some (sk, sham)
-          | None -> None
+        match List.assoc_opt s shift_kind_assoc with
+        | Some sk -> Some (sk, sham)
+        | None -> None
         end
-    | _ ->
-        None
+    | _ -> None
   in
   match List.opicki get_shift args with
   | None -> (None, args)

@@ -2,6 +2,7 @@ open Utils
 open Prog
 open Glob_options
 
+
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
@@ -283,7 +284,7 @@ let main () =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       match v.v_kind with
       | Stack _ | Reg (_, Pointer _) | Global -> true
-      | Const | Inline | Reg(_, Direct) -> false
+      | Const | Inline | Reg (_, Direct) -> false
      in
 
     let pp_csprog fmt cp =

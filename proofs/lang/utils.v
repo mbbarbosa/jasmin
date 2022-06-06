@@ -207,9 +207,9 @@ Notation rmap  := Result.map.
 Notation ok    := (@Ok _).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
+Notation "m >> n" := (rbind (λ _, n) m) (at level 25, left associativity).
 Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x name, at level 25).
 Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25).
-Notation "m >> n" := (rbind (λ _, n) m) (at level 25, left associativity).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
@@ -1640,3 +1640,17 @@ Proof.
   case: xs; case: ys => //= y ys x xs.
   by move=> /andP [] _.
 Qed.
+
+Lemma notin_cons (T : eqType) (x y : T) (s : seq T) :
+  (x \notin y :: s) = (x != y) && (x \notin s).
+Proof. by rewrite in_cons negb_or. Qed.
+
+(* Convert [ C |- uniq xs -> P ] into
+   [ C, ? : x0 <> x1, ? : x0 <> x2, ... |- P ]. *)
+Ltac t_elim_uniq :=
+  repeat (
+    move=> /andP [];
+    repeat (rewrite notin_cons; move=> /andP [] /eqP ?);
+    move=> _
+  );
+  move=> _.

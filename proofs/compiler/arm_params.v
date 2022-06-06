@@ -90,9 +90,18 @@ Definition arm_liparams : linearization_params :=
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
 
+#[ local ]
+Definition arm_fvars_correct
+  (fv : fresh_vars)
+  {eft : eqType}
+  {pT : progT eft}
+  (fds : seq fun_decl) :
+  bool :=
+  fvars_correct (all_fresh_vars fv) (fvars fv) fds.
+
 Definition arm_loparams : lowering_params fresh_vars lowering_options :=
   {|
-    lop_lower_i := fun _ _ _ => lower_i;
+    lop_lower_i := fun _ _ => lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 

@@ -12,9 +12,9 @@ let imm_pre = "#"
      - A base register and an immediate offset (displacement): [<reg>, #<imm>]
      - A base register and a register offset: [<reg>, <reg>]
      - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>]
-   *)
+*)
 let pp_reg_address_aux base disp off scal =
-  match disp, off, scal with
+  match (disp, off, scal) with
   | None, None, None ->
       Printf.sprintf "[%s]" base
   | Some disp, None, None ->
@@ -28,7 +28,6 @@ let pp_reg_address_aux base disp off scal =
 
 let pp_rip_address (_ : Ssralg.GRing.ComRing.sort) : string =
   failwith "TODO_ARM pp_rip_address"
-
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -51,7 +50,6 @@ let print_asm_line fmt ln =
 
 let print_asm_lines fmt lns =
   List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
-
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -104,11 +102,9 @@ let pp_asm_arg arg =
   | Addr addr -> Some (pp_address addr)
   | XReg r -> Some (pp_xregister r)
 
-
 (* -------------------------------------------------------------------- *)
 
-let headers = [LInstr (".syntax unified", [])]
-
+let headers = [ LInstr (".syntax unified", []) ]
 
 (* -------------------------------------------------------------------- *)
 
@@ -146,14 +142,12 @@ let pp_syscall (o : Syscall_t.syscall_t) =
    must be introduced *in addition* to conditional suffixes. *)
 let get_IT i =
   match i with
-  | AsmOp (_, args) ->
-      begin
-        match List.opick (is_Condt arch) args with
-        | None -> []
-        | Some c -> [LInstr ("it", [pp_condt c])]
-      end
-  | _ ->
-      []
+  | AsmOp (_, args) -> begin
+      match List.opick (is_Condt arch) args with
+      | None -> []
+      | Some c -> [ LInstr ("it", [ pp_condt c ]) ]
+    end
+  | _ -> []
 
 let pp_instr tbl fn (_ : Format.formatter) i =
   match i with
@@ -161,34 +155,35 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       failwith "TODO_ARM pp_instr align"
 
   | LABEL lbl ->
-      [LLabel (pp_label fn lbl)]
+      [ LLabel (pp_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->
-      [LInstr ("adr", [pp_register dst; string_of_label fn lbl])]
+      [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
   | JMP lbl ->
-      [LInstr ("b", [pp_remote_label tbl lbl])]
+      [ LInstr ("b", [ pp_remote_label tbl lbl ]) ]
 
-  | JMPI arg -> (* TODO_ARM: Review. *)
+  | JMPI arg ->
+      (* TODO_ARM: Review. *)
       let lbl =
         match arg with
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      [LInstr ("b", [lbl])]
+      [ LInstr ("b", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
-      [LInstr (iname, [pp_label fn lbl])]
+      [ LInstr (iname, [ pp_label fn lbl ]) ]
 
   | JAL _ ->
       failwith "TODO_ARM pp_instr jal"
 
   | CALL lbl ->
-      [LInstr ("bl", [pp_remote_label tbl lbl])]
+      [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
 
   | POPPC ->
-      [LInstr ("b", [pp_register LR])]
+      [ LInstr ("b", [ pp_register LR ]) ]
 
   | SysCall op ->
       [LInstr ("call", [pp_syscall op])]
@@ -199,13 +194,11 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       let name = pp_mnemonic_ext op args in
       let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
       let args = pp_shift op args in
-      get_IT i @ [LInstr (name, args)]
-
+      get_IT i @ [ LInstr (name, args) ]
 
 (* -------------------------------------------------------------------- *)
 
 let pp_body tbl fn fmt cmd = List.concat_map (pp_instr tbl fn fmt) cmd
-
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -214,7 +207,9 @@ let mangle x = Printf.sprintf "_%s" x
 
 let pp_fun tbl fmt (fn, fd) =
   let fn = Conv.string_of_funname tbl fn in
-  let pre = if fd.asm_fd_export then [LLabel (mangle fn); LLabel fn] else [] in
+  let pre =
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn ] else []
+  in
   let body = pp_body tbl fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)
   let pos = if fd.asm_fd_export then pp_instr tbl fn fmt POPPC else [] in

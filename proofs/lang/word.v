@@ -617,7 +617,7 @@ rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
 by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
 Qed.
 
-Lemma wltsE sz (α β: word sz) : α ≠ β →
+Lemma wltsE_aux sz (α β: word sz) : α ≠ β →
   wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
 move=> ne_ab; rewrite /= !msb_wordE /wsigned /srepr.
@@ -670,7 +670,7 @@ Qed.
 Lemma wlesE' sz (α β: word sz) : α ≠ β →
   wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
-move=> ne_ab; suff ->: wle Signed α β = wlt Signed α β by rewrite wltsE.
+move=> ne_ab; suff ->: wle Signed α β = wlt Signed α β by rewrite wltsE_aux.
 by move=> /=; rewrite le_eqVlt orb_idl // => /eqP /srepr_inj.
 Qed.
 
@@ -1652,6 +1652,10 @@ Proof.
   by rewrite Zlxor_mod.
 Qed.
 
+Lemma msb_wnot ws (x : word ws) :
+  msb (wnot x) = ~~ msb x.
+Proof. rewrite /msb. by have /= -> := wnotE x (Ordinal (ltnSn _)). Qed.
+
 Lemma wnotP ws (x : word ws) :
   wnot x = wrepr ws (Z.lnot (wunsigned x)).
 Proof.
@@ -1676,3 +1680,37 @@ Qed.
 Lemma wsub_wnot1 ws (x y : word ws) :
   (x + wnot y + 1)%R = (x - y)%R .
 Proof. by rewrite -GRing.Theory.addrA wnot1_wopp. Qed.
+
+Lemma wunsigned_wnot ws (x : word ws) :
+  wunsigned (wnot x) = (wbase ws - wunsigned x - 1)%Z.
+Proof.
+  rewrite wnotP wunsigned_repr.
+  change (word.modulus (wsize_size_minus_1 ws).+1) with (wbase ws).
+  rewrite ZlnotE.
+  rewrite -(Z.mod_add _ 1 _); last exact: wbase_n0.
+  rewrite Zmod_small; first lia.
+  have := wunsigned_range x.
+  lia.
+Qed.
+
+Lemma wsigned_wnot ws (x : word ws) :
+  (wsigned (wnot x))%Z = (- wsigned x - 1)%Z.
+Proof.
+  rewrite 2!wsignedE.
+  rewrite msb_wnot.
+  case: msb => /=;
+    rewrite wunsigned_wnot;
+    lia.
+Qed.
+
+Lemma wsigned_wsub_wnot1 ws (x y : word ws) :
+  (wsigned x + wsigned (wnot y) + 1)%Z = (wsigned x - wsigned y)%Z.
+Proof. rewrite -Z.add_assoc wsigned_wnot. lia. Qed.
+
+Lemma wltsE ws (x y : word ws) :
+  wlt Signed x y
+  = (msb (x - y) != (wsigned (x - y) != (wsigned x - wsigned y)%Z)).
+Proof.
+  case: (x =P y); last by apply wltsE_aux.
+  by move=> <-; rewrite /= ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
+Qed.

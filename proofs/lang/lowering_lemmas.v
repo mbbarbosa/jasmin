@@ -1,27 +1,18 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 
-Require Import expr low_memory psem.
+Require Import
+  expr
+  low_memory
+  lowering
+  psem.
+Require Import
+  sv_lemmas.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-
-Lemma subset_diff xs ys :
-  disjoint xs ys -> Sv.Subset xs (Sv.diff xs ys).
-Proof.
-  move=> /Sv.is_empty_spec.
-  SvD.fsetdec.
-Qed.
-
-Lemma disjoint_union_r xs ys zs :
-  disjoint (Sv.union xs ys) zs -> disjoint xs zs /\ disjoint ys zs.
-Proof.
-  move=> /Sv.is_empty_spec H.
-  split;
-    apply/Sv.is_empty_spec;
-    SvD.fsetdec.
-Qed.
 
 
 Section ESTATE_EQ_EXCEPT.
@@ -67,28 +58,23 @@ Lemma eeq_exc_disjoint xs ys s0 s1 :
   -> estate_eq_except ys s0 s1
   -> [/\ escs s0 = escs s1, emem s0 = emem s1 & evm s0 =[ xs ] evm s1].
 Proof.
-  move=> Hdisj [-> -> Hvm]; split=> //.
-  move=> x Hxxs.
-  apply: Hvm => Hyys.
-  rewrite /disjoint in Hdisj.
-  apply Sv.is_empty_spec in Hdisj.
+  move=> /Sv.is_empty_spec hdisj [-> -> hvm].
+  split=> // x hxxs.
+  apply: hvm.
   SvD.fsetdec.
 Qed.
 
-(* The semantics of an expression in two states is the same if they only differ
- * in variables that don't appear in the expression.
- *)
 Lemma eeq_exc_sem_pexprs gd xs es v s0 s1 :
   disjoint (read_es es) xs
   -> estate_eq_except xs s1 s0
   -> sem_pexprs gd s0 es = ok v
   -> sem_pexprs gd s1 es = ok v.
 Proof.
-  move=> Hdisj Heq.
-  have [Hscs Hmem Hvm] := eeq_exc_disjoint Hdisj Heq.
-  rewrite (read_es_eq_on gd Hvm).
+  move=> hdisj heq.
+  have [hscs hmem hvm] := eeq_exc_disjoint hdisj heq.
+  rewrite (read_es_eq_on gd hvm).
   rewrite /with_vm.
-  rewrite Hscs Hmem.
+  rewrite hscs hmem.
   by rewrite -(surj_estate s0).
 Qed.
 
@@ -98,90 +84,76 @@ Lemma eeq_exc_sem_pexpr gd xs e v s0 s1 :
   -> sem_pexpr gd s0 e = ok v
   -> sem_pexpr gd s1 e = ok v.
 Proof.
-  move=> Hdisj Heq Hsem.
+  move=> hdisj heq hsem.
 
-  have Hdisj' : disjoint (read_es [:: e ]) xs.
+  have hdisj' : disjoint (read_es [:: e ]) xs.
   - done.
 
-  have Hsem' : sem_pexprs gd s0 [:: e ] = ok [:: v ].
-  - by rewrite /= Hsem.
+  have hsem' : sem_pexprs gd s0 [:: e ] = ok [:: v ].
+  - by rewrite /= hsem.
 
-  have := eeq_exc_sem_pexprs Hdisj' Heq Hsem'.
+  have := eeq_exc_sem_pexprs hdisj' heq hsem'.
   rewrite /=.
   by t_xrbindP => ? ? <-.
 Qed.
 
-(* If two states s0 and s0' are equal up to a set xs of variables,
- * and writing to different variables ls in s0 succeeds in s1,
- * then doing so in s0' succeeds in s1' and
- * s1' is equal to s1 up to xs.
- *
- *           s0 ------- write_lvals ls -------> s1
- *           |                                  |
- *           |                                  |
- *  estate_eq_except xs                estate_eq_except xs
- *           |                                  |
- *           |                                  |
- *           s0' ------ write_lvals ls -------> s1'
- *)
 Lemma eeq_exc_write_lvals gd xs s0 s1 s0' ls vs :
   disjoint (vars_lvals ls) xs
   -> estate_eq_except xs s0' s0
   -> write_lvals gd s0 ls vs = ok s1
-  -> exists s1',
-      write_lvals gd s0' ls vs = ok s1' /\ estate_eq_except xs s1' s1.
+  -> exists2 s1',
+       write_lvals gd s0' ls vs = ok s1' & estate_eq_except xs s1' s1.
 Proof.
-  move=> Hdisj.
+  move=> hdisj.
   move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
-  move=> [/= Hscs Hmem Hvm] Hwrite.
+  move=> [/= hscs hmem hvm] hwrite.
   subst scs0 mem0.
 
-  have Hsub : Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) xs).
-  - rewrite /vars_lvals in Hdisj.
-    have [Hdisj' _] := disjoint_union_r Hdisj.
-    exact: subset_diff Hdisj'.
+  have hsub : Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) xs).
+  - rewrite /vars_lvals in hdisj.
+    have [hdisj' _] := disjoint_union hdisj.
+    exact: (disjoint_subset_diff hdisj').
+  clear hdisj.
 
-  have Hvm' : vm0 =[Sv.diff (read_rvs ls) xs] vm0'.
-  - move=> x Hx. apply: vmap_eq_exceptS. apply: Hvm. SvD.fsetdec.
+  have hvm' : vm0 =[Sv.diff (read_rvs ls) xs] vm0'.
+  - move=> x hx. apply: vmap_eq_exceptS. apply: hvm. SvD.fsetdec.
 
-  have [vm1' [Hvm1' Hwrite']] := write_lvals_eq_on Hsub Hwrite Hvm'.
+  have [vm1' [hvm1' hwrite']] := write_lvals_eq_on hsub hwrite hvm'.
+  clear hsub hvm'.
 
-  exists (with_vm s1 vm1').
-  split.
-  - exact: Hwrite'.
-  - split=> //.
-    move=> x Hx /=.
-    case Hxvrv : (Sv.mem x (vrvs ls)).
-    + move: Hxvrv => /Sv_memP Hxvrv.
-      rewrite Hvm1'; first done.
-      SvD.fsetdec.
-    move: Hxvrv => /Sv_memP Hxvrv.
-    rewrite -(vrvsP Hwrite' Hxvrv).
-    rewrite -(vrvsP Hwrite Hxvrv).
-    exact: Hvm.
+  eexists; first exact: hwrite'.
+  split=> //= x hx.
+  case hxvrv : (Sv.mem x (vrvs ls)).
+  - move: hxvrv => /Sv_memP hxvrv.
+    rewrite hvm1'; first done.
+    SvD.fsetdec.
+  - move: hxvrv => /Sv_memP hxvrv.
+    rewrite -(vrvsP hwrite' hxvrv) {hwrite'}.
+    rewrite -(vrvsP hwrite hxvrv) {hwrite}.
+    exact: hvm.
 Qed.
 
 Lemma eeq_exc_write_lval gd xs s0 s1 s0' l v :
   disjoint (vars_lval l) xs
   -> estate_eq_except xs s0' s0
   -> write_lval gd l v s0 = ok s1
-  -> exists s1',
-      write_lval gd l v s0' = ok s1' /\ estate_eq_except xs s1' s1.
+  -> exists2 s1',
+       write_lval gd l v s0' = ok s1' & estate_eq_except xs s1' s1.
 Proof.
-  move=> Hdisj Heq Hwrite.
+  move=> hdisj heq hwrite.
 
-  have Hdisj' : disjoint (vars_lvals [:: l ]) xs.
+  have hdisj' : disjoint (vars_lvals [:: l ]) xs.
   - done.
 
-  have Hwrite' : write_lvals gd s0 [:: l ] [:: v ] = ok s1.
-  - by rewrite /= Hwrite.
+  have hwrite' : write_lvals gd s0 [:: l ] [:: v ] = ok s1.
+  - by rewrite /= hwrite.
 
-  have [s1' [Hwrite1 Heq1]] := eeq_exc_write_lvals Hdisj' Heq Hwrite'.
+  have [s1' hwrite1 heq1] := eeq_exc_write_lvals hdisj' heq hwrite'.
 
-  exists s1'.
-  split.
-  - move: Hwrite1. rewrite /=. by t_xrbindP => ? ? <-.
-  - exact: Heq1.
+  eexists; last exact: heq1.
+  move: hwrite1.
+  rewrite /=.
+  by t_xrbindP => ? ? <-.
 Qed.
 
 Lemma eeq_exc_get_gvar gd s0 s1 (x : gvar) vs :
@@ -197,3 +169,159 @@ Proof.
 Qed.
 
 End ESTATE_EQ_EXCEPT.
+
+
+Section DISJ_FVARS.
+
+Context
+  {eft : eqType}
+  {pT : progT eft}
+  {asmop : Type}
+  {asm_op : asmOp asmop}
+  (all_fresh_vars : seq Ident.ident)
+  (fvars : Sv.t).
+
+Notation disj_fvars := (disj_fvars fvars).
+Notation fvars_correct := (fvars_correct all_fresh_vars fvars).
+
+Context
+  (p : prog)
+  (fv_correct : fvars_correct (p_funcs p)).
+
+Lemma fvars_fresh : disj_fvars (vars_p (p_funcs p)).
+Proof. by move: fv_correct => /andP []. Qed.
+
+Lemma disj_fvars_read_e_Papp2 op e0 e1 :
+  disj_fvars (read_e (Papp2 op e0 e1))
+  -> disj_fvars (read_e e0) /\ disj_fvars (read_e e1).
+Proof.
+  rewrite /read_e /=.
+  move=> /(disjoint_equal_l (read_eE _ _)).
+  by move=> /disjoint_union [h0 h1].
+Qed.
+
+Lemma disj_fvars_read_e_Pif ty c e0 e1 :
+  disj_fvars (read_e (Pif ty c e0 e1))
+  -> [/\ disj_fvars (read_e c)
+       , disj_fvars (read_e e0)
+       & disj_fvars (read_e e1)
+     ].
+Proof.
+  rewrite /read_e /=.
+  move=> /(disjoint_equal_l (read_eE _ _)).
+  move=> /disjoint_union [] hc.
+  move=> /(disjoint_equal_l (read_eE _ _)).
+  by move=> /disjoint_union [he0 he1].
+Qed.
+
+Lemma disj_fvars_vars_c_cons i c :
+  disj_fvars (vars_c (i :: c))
+  -> disj_fvars (vars_I i) /\ disj_fvars (vars_c c).
+Proof.
+  rewrite /disj_fvars. rewrite vars_c_cons. exact: disjoint_union.
+Qed.
+
+Lemma disj_fvars_vars_I_Cassgn ii lv tag ty e :
+  disj_fvars (vars_I (MkI ii (Cassgn lv tag ty e)))
+  -> disj_fvars (vars_lval lv) /\ disj_fvars (read_e e).
+Proof.
+  move=> /(disjoint_equal_l (vars_I_assgn ii lv tag ty e)).
+  by move=> /disjoint_union.
+Qed.
+
+Lemma disj_fvars_vars_I_Copn ii lvs tag op es :
+  disj_fvars (vars_I (MkI ii (Copn lvs tag op es)))
+  -> disj_fvars (vars_lvals lvs) /\ disj_fvars (read_es es).
+Proof.
+  move=> /(disjoint_equal_l (vars_I_opn ii lvs tag op es)).
+  by move=> /disjoint_union.
+Qed.
+
+Lemma disj_fvars_vars_I_Cif ii e c0 c1 :
+  disj_fvars (vars_I (MkI ii (Cif e c0 c1)))
+  -> [/\ disj_fvars (read_e e)
+       , disj_fvars (vars_c c0)
+       & disj_fvars (vars_c c1)
+     ].
+Proof.
+  move=> /(disjoint_equal_l (vars_I_if ii e c0 c1)).
+  by move=> /disjoint_union [] h0 /disjoint_union [h1 h2].
+Qed.
+
+Lemma disj_fvars_vars_I_Cwhile ii al c0 e c1 :
+  disj_fvars (vars_I (MkI ii (Cwhile al c0 e c1)))
+  -> [/\ disj_fvars (vars_c c0)
+       , disj_fvars (read_e e)
+       & disj_fvars (vars_c c1)
+     ].
+Proof.
+  move=> /(disjoint_equal_l (vars_I_while ii al c0 e c1)).
+  by move=> /disjoint_union [] h0 /disjoint_union [h1 h2].
+Qed.
+
+Lemma disj_fvars_vars_I_Cfor ii i d lo hi c :
+  disj_fvars (vars_I (MkI ii (Cfor i (d, lo, hi) c)))
+  -> [/\ disj_fvars (Sv.add i (vars_c c))
+       , disj_fvars (read_e lo)
+       & disj_fvars (read_e hi)
+     ].
+Proof.
+  move=> /(disjoint_equal_l (vars_I_for ii i d lo hi c)).
+  move=> /disjoint_union [] h /disjoint_union [h0 h1].
+  split=> // {h0 h1}.
+  apply: disjoint_equal_l _ h.
+  apply: SvP.MP.equal_sym.
+  rewrite SvP.MP.union_sym.
+  exact: SvP.MP.add_union_singleton.
+Qed.
+
+Lemma disj_fvars_vars_I_Ccall ii inli lvs fn args :
+  disj_fvars (vars_I (MkI ii (Ccall inli lvs fn args)))
+  -> disj_fvars (vars_lvals lvs) /\ disj_fvars (read_es args).
+Proof.
+  move=> /(disjoint_equal_l (vars_I_call ii inli lvs fn args)).
+  by move=> /disjoint_union.
+Qed.
+
+Lemma disj_fvars_get_fundef fn fd :
+  get_fundef (p_funcs p) fn = Some fd
+  -> [/\ disj_fvars (vars_l (f_params fd))
+       , disj_fvars (vars_l (f_res fd))
+       & disj_fvars (vars_c (f_body fd))
+     ].
+Proof.
+  move=> hget.
+  have := disjoint_w (vars_pP hget) fvars_fresh.
+  by move=> /disjoint_union [] ? /disjoint_union [].
+Qed.
+
+Lemma disj_fvars_Cfor_c (i : var_i) xs :
+  disj_fvars (Sv.add i xs)
+  -> disj_fvars (vars_lval (Lvar i)) /\ disj_fvars xs.
+Proof.
+  move=> /disjoint_add [hi hxs].
+  split; last exact hxs.
+  apply: disjoint_equal_l _ hi.
+  apply: SvP.MP.equal_sym.
+  exact: vars_lval_Lvar.
+Qed.
+
+Lemma disj_fvars_vars_l_read_es xs :
+  disj_fvars (vars_l xs)
+  -> disj_fvars (read_es [seq Pvar (mk_lvar x) | x <- xs ]).
+Proof.
+  elim: xs => // x xs hind.
+  rewrite /=.
+  move=> /disjoint_add [hfvx hfvxs].
+  apply: disjoint_equal_l.
+  - apply/SvP.MP.equal_sym. exact: read_es_cons.
+
+  apply: union_disjoint _ (hind hfvxs).
+  apply: disjoint_equal_l _ hfvx.
+  clear hind hfvxs.
+
+  apply/SvP.MP.equal_sym.
+  exact: read_e_var.
+Qed.
+
+End DISJ_FVARS.
