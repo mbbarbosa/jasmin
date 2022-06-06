@@ -1616,3 +1616,63 @@ Proof.
   rewrite (zero_extend_idem _ hc2) /truncate_word ifT //.
   exact: (cmp_le_trans hc2 hc1).
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(* TODO_ARM: Move? *)
+
+Lemma ZlnotE (x : Z) :
+  Z.lnot x = (- (x + 1))%Z.
+Proof. have := Z.add_lnot_diag x. lia. Qed.
+
+Lemma Zlxor_mod (a b n : Z) :
+  (0 <= n)%Z
+  -> ((Z.lxor a b) mod 2^n)%Z = (Z.lxor (a mod 2^n) (b mod 2^n))%Z.
+Proof.
+  move=> hn.
+  apply: Z.bits_inj'.
+  move=> i _.
+  rewrite Z.lxor_spec.
+
+  case: (Z.lt_ge_cases i n) => [hlt | hge].
+  - rewrite 3!(Z.mod_pow2_bits_low _ _ _ hlt). exact: Z.lxor_spec.
+
+  have hrange: (0 <= n <= i)%Z.
+  - by split.
+  by rewrite 3!(Z.mod_pow2_bits_high _ _ _ hrange).
+Qed.
+
+Lemma wrepr_xor ws (x y : Z) :
+  wxor (wrepr ws x) (wrepr ws y) = wrepr ws (Z.lxor x y).
+Proof.
+  apply: word_ext.
+  rewrite /wrepr /=.
+  set wsz := (wsize_size_minus_1 ws).+1.
+  change (word.modulus wsz) with (two_power_nat wsz).
+  rewrite two_power_nat_equiv.
+  by rewrite Zlxor_mod.
+Qed.
+
+Lemma wnotP ws (x : word ws) :
+  wnot x = wrepr ws (Z.lnot (wunsigned x)).
+Proof.
+  rewrite /wnot.
+  rewrite -Z.lxor_m1_r.
+  rewrite -wrepr_xor.
+  rewrite wrepr_unsigned.
+  by rewrite wrepr_m1.
+Qed.
+
+Lemma wnot1_wopp ws (x : word ws) :
+  (wnot x + 1)%R = (- x)%R.
+Proof.
+  rewrite wnotP.
+  rewrite wrepr_add.
+  rewrite wrepr_opp.
+  rewrite wrepr_unsigned.
+  rewrite wrepr_m1.
+  exact: GRing.Theory.addrNK.
+Qed.
+
+Lemma wsub_wnot1 ws (x y : word ws) :
+  (x + wnot y + 1)%R = (x - y)%R .
+Proof. by rewrite -GRing.Theory.addrA wnot1_wopp. Qed.

@@ -67,7 +67,7 @@ Notation lowered_pexpr := (option (arm_op * seq pexpr)).
 Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
   let omn :=
     if is_var_in_memory (gv v)
-    then load_op_of_wsize ws
+    then load_mn_of_wsize ws
     else if ws is U32 then Some MOV else None
   in
   if omn is Some mn
@@ -84,7 +84,7 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
      + a register.
      + an immediate. *)
 Definition lower_Pload (ws : wsize) (v : var_i) (e : pexpr) : lowered_pexpr :=
-  if load_op_of_wsize ws is Some op
+  if load_mn_of_wsize ws is Some op
   then Some (ARM_op op default_opts, [:: Pload ws v e ])
   else None.
 
@@ -185,7 +185,7 @@ Fixpoint lower_pexpr (ws : wsize) (e : pexpr) : lowered_pexpr :=
      + a register.
      + an if expression. *)
 Definition lower_store (ws : wsize) (e : pexpr) : lowered_pexpr :=
-  if store_op_of_wsize ws is Some op
+  if store_mn_of_wsize ws is Some op
   then
     let args :=
       match e with
@@ -227,7 +227,7 @@ Definition lower_copn
   (lvs : lvals) (op : sopn) (es : seq pexpr) : option (lvals * sopn * pexprs) :=
   match op with
   | Oasm (BaseOp (None, ARM_op mn opts)) =>
-      if mn \in data_mnemonics
+      if mn \in has_shift_mnemonics
       then Some (lvs, op, es)
       else None
   | _ => None

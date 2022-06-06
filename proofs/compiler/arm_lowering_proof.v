@@ -131,7 +131,7 @@ Lemma sem_i_lower_store s0 s0' s1' ws ws' e aop es (w : word ws') lv tag :
 Proof.
   move=> hws hs0' hsem hwrite.
   rewrite /lower_store.
-  elim hop: store_op_of_wsize => [op|] //.
+  case hop: store_mn_of_wsize => [op|] //.
   case: e hsem => [||| gx ||||||| ty' c e0 e1] // hsem [? ?];
     subst aop es.
 
@@ -359,6 +359,9 @@ Proof.
   all: rewrite /exec_sopn /=.
   all: rewrite /truncate_word hws0 hws1 /=.
   all: clear hws0 hws1.
+
+  2: rewrite wsub_wnot1.
+
   all: by rewrite zero_extend_u.
 Qed.
 
@@ -408,6 +411,9 @@ Proof.
   all: rewrite /truncate_word hws0 hws2 {hws0 hws2} /=.
   all: rewrite (zero_extend_shift_op _ _ _ hws1).
   all: rewrite !zero_extend_u.
+
+  2: rewrite wsub_wnot1.
+
   all: by rewrite (zero_extend_idem _ hws1).
 Qed.
 
@@ -449,7 +455,7 @@ Proof.
   move=> hw.
 
   rewrite /lower_Pif.
-  elim he0: lower_pexpr => [[[op opts] es0]|] //.
+  case he0: lower_pexpr => [[[op opts] es0]|] //.
   move=> [<- <-] {aop es}.
 
   have [vs' hsem hexec] := hind _ _ he0.

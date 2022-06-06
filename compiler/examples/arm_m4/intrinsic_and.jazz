@@ -20,9 +20,10 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
   // Set flags.
   reg bool n, z, c, v;
-  n, z, c, v, x = #ANDS(x, arg0);
-  n, z, c, v, x = #ANDS(x, 1);
-  n, z, c, v, x = #ANDS(x, arg0, #LSL(3));
+  n, z, c, x = #ANDS(x, arg0);
+  n, z, c, x = #ANDS(x, 1);
+  n, z, c, x = #ANDS(x, arg0, #LSL(3));
+  n, z, c, v, _ = #MOVS(x); // AND does not set V.
 
   // Conditions.
   x = #ANDcc(x, arg0, z, x);            // EQ
@@ -41,10 +42,10 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
   x = #ANDcc(x, arg0, z || n != v, x);  // LE
 
   x = #ANDcc(x, 1, !!!!z, x);
-  n, z, c, v, x = #ANDScc(x, arg0, n == v, n, z, c, v, x);
-  n, z, c, v, x = #ANDScc(x, 2, !c || z, n, z, c, v, x);
+  n, z, c, x = #ANDScc(x, arg0, n == v, n, z, c, x);
+  n, z, c, x = #ANDScc(x, 2, !c || z, n, z, c, x);
   x = #ANDcc(x, arg0, #LSL(3), z, x);
-  n, z, c, v, x = #ANDScc(x, arg0, #LSL(3), z, n, z, c, v, x);
+  n, z, c, x = #ANDScc(x, arg0, #LSL(3), z, n, z, c, x);
 
   reg u32 res;
   res = x;

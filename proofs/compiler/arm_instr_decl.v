@@ -89,77 +89,23 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
 
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
-| ADC                            (* Add with carry *)
 | ADD                            (* Add without carry *)
-
-| SBC                            (* Subtract with carry *)
 | SUB                            (* Subtract without carry *)
-
-| MUL                            (* Multiply *)
-| MLA                            (* Multiply and accumulate *)
-| MLS                            (* Multiply and subtract *)
-| SMLAL                          (* Signed multiply accumulate long *)
-| SMULL                          (* Signed multiply long *)
-| UMLAL                          (* Unsigned multiply accumulate long *)
-| UMULL                          (* Unsigned multiply long *)
-
-| SDIV                           (* Signed integer division *)
-| UDIV                           (* Unsigned integer division *)
-
-| SSAT                           (* Signed saturate *)
-| USAT                           (* Unsigned saturate *)
-
-| SXTB                           (* Signed extend byte *)
-| SXTH                           (* Signed extend halfword *)
-| UXTB                           (* Unsigned extend byte *)
-| UXTH                           (* Unsigned extend halfword *)
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
-| EOR                            (* Bitwise XOR *)
-| MVN                            (* Bitwise NOT *)
-| ORR                            (* Bitwise OR *)
-
-(* Shifts *)
-| LSL                            (* Logical shift left *)
-| LSR                            (* Logical shift right *)
-| ROR                            (* Rotate right *)
 
 (* Other data processing instructions *)
-| BIC                            (* Bitwise bit clear *)
 | MOV                            (* Copy operand to destination *)
 
 (* Comparison *)
 | CMP                            (* Compare *)
-| TST                            (* Test flags *)
 
 (* Loads *)
 | LDR                            (* Load a 32-bit word *)
-| LDRH                           (* Load a 16-bit unsigned halfword *)
-| LDRSH                          (* Load a 16-bit signed halfword *)
-| LDRB                           (* Load a 8-bit unsigned byte *)
-| LDRSB                          (* Load a 8-bit signed byte *)
-| LDRD                           (* Load two 32-bit words *)
-| LDM                            (* Load multiple 32-bit words *)
-| LDMIA                          (* Load multiple 32-bit words,
-                                    increment base after *)
-| LDMDB                          (* Load multiple 32-bit words,
-                                    decrement base before *)
-| POP                            (* Load multiple 32-bit words from the stack,
-                                    decrement sp (defined in terms of LDMIA) *)
 
 (* Stores *)
-| STR                            (* Store a 32-bit word *)
-| STRH                           (* Store a 16-bit halfword *)
-| STRB                           (* Store a 8-bit byte *)
-| STRD                           (* Store two 32-bit words *)
-| STM                            (* Store multiple 32-bit words *)
-| STMIA                          (* Store multiple 32-bit words,
-                                    increment base after *)
-| STMDB                          (* Store multiple 32-bit words,
-                                    decrement base before *)
-| PUSH.                          (* Store multiple 32-bit words from the stack,
-                                    decrement sp (defined in terms of STMDB) *)
+| STR.                           (* Store a 32-bit word *)
 
 Definition arm_mnemonic_dec_eq (mn0 mn1 : arm_mnemonic) :
   {mn0 = mn1} + {mn0 <> mn1}.
@@ -186,15 +132,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADC; ADD; SBC; SUB; MUL; MLA; MLS; SMLAL; SMULL; UMLAL; UMULL
-    ; SDIV; UDIV; SSAT; USAT; SXTB; SXTH; UXTB; UXTH
-    ; AND; EOR; MVN; ORR
-    ; LSL; LSR; ROR
-    ; BIC; MOV
-    ; CMP; TST
-    ; LDR; LDRH; LDRSH; LDRB; LDRSB; LDRD; LDM; LDMIA; LDMDB; POP
-    ; STR; STRH; STRB; STRD; STM; STMIA; STMDB; PUSH
-  ].
+  [:: ADD; SUB; AND; MOV; CMP; LDR; STR ].
 
 Lemma arm_mnemonic_fin_axiom : Finite.axiom arm_mnemonics.
 Proof. by case. Qed.
@@ -207,76 +145,21 @@ Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
 
 Canonical arm_mnemonic_finType := @cfinT_finType _ finTC_arm_mnemonic.
 
-(* ARM instructions are either data, comparison or memory instructions. *)
+Definition set_flags_mnemonics : seq arm_mnemonic :=
+  [:: ADD; SUB; AND; MOV; CMP ].
 
-Definition data_mnemonics : seq arm_mnemonic :=
-  [:: ADC; ADD; SBC; SUB; MUL; MLA; MLS; SMLAL; SMULL; UMLAL; UMULL; SDIV; UDIV
-    ; SSAT; USAT; SXTB; SXTH; UXTB; UXTH; AND; EOR; MVN; ORR; LSL; LSR; ROR
-    ; BIC; MOV
-  ].
-
-Definition comparison_mnemonics : seq arm_mnemonic :=
-  [:: CMP; TST ].
-
-Definition memory_mnemonics : seq arm_mnemonic :=
-  [:: LDR; LDRH; LDRSH; LDRB; LDRSB; LDRD; LDM; LDMIA; LDMDB; POP; STR; STRH
-    ; STRB; STRD; STM; STMIA; STMDB; PUSH
-  ].
-
-Lemma mnemonic_kind_enum :
-  data_mnemonics ++ comparison_mnemonics ++ memory_mnemonics = cenum.
-Proof. done. Qed.
+Definition has_shift_mnemonics : seq arm_mnemonic :=
+  [:: ADD; SUB; AND; MOV; CMP ].
 
 Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   match mn with
-  | ADC => "adc"
   | ADD => "add"
-  | SBC => "sbc"
   | SUB => "sub"
-  | MUL => "mul"
-  | MLA => "mla"
-  | MLS => "mls"
-  | SMLAL => "smlal"
-  | SMULL => "smull"
-  | UMLAL => "umlal"
-  | UMULL => "umull"
-  | SDIV => "sdiv"
-  | UDIV => "udiv"
-  | SSAT => "ssat"
-  | USAT => "usat"
-  | SXTB => "sxtb"
-  | SXTH => "sxth"
-  | UXTB => "uxtb"
-  | UXTH => "uxth"
   | AND => "and"
-  | EOR => "eor"
-  | MVN => "mvn"
-  | ORR => "orr"
-  | LSL => "lsl"
-  | LSR => "lsr"
-  | ROR => "ror"
   | CMP => "cmp"
-  | TST => "tst"
-  | BIC => "bic"
   | MOV => "mov"
   | LDR => "ldr"
-  | LDRH => "ldrh"
-  | LDRSH => "ldrsh"
-  | LDRB => "ldrb"
-  | LDRSB => "ldrsb"
-  | LDRD => "ldrd"
-  | LDM => "ldm"
-  | LDMIA => "ldmia"
-  | LDMDB => "ldmdb"
-  | POP => "pop"
   | STR => "str"
-  | STRH => "strh"
-  | STRB => "strb"
-  | STRD => "strd"
-  | STM => "stm"
-  | STMIA => "stmia"
-  | STMDB => "stmdb"
-  | PUSH => "push"
   end.
 
 Lemma string_of_register_inj : injective string_of_register.
@@ -327,23 +210,27 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Common semantic types. *)
 
-Notation wreg_ty := (sem_tuple [:: sreg ]).
-
-(* Tuple for flag values: (NF, ZF, CF, VF). *)
 Notation sflag := (sbool) (only parsing).
-Notation sflags := ([:: sflag; sflag; sflag; sflag ]) (only parsing).
-Notation nzcv_ty := (sem_tuple sflags) (only parsing).
+Notation snzc := ([:: sflag; sflag; sflag ]) (only parsing).
+Notation snzcv := ([:: sflag; sflag; sflag; sflag ]) (only parsing).
+Notation snzc_r := (snzc ++ [:: sreg ]) (only parsing).
+Notation snzcv_r := (snzcv ++ [:: sreg ]) (only parsing).
 
-Notation flag_ty := (sem_tuple [:: sflag ]) (only parsing).
-Notation nzcvr_ty := (sem_tuple (sflags ++ [:: sreg ])) (only parsing).
+Notation ty_nzc := (sem_tuple snzc) (only parsing).
+Notation ty_nzcv := (sem_tuple snzcv) (only parsing).
+Notation ty_reg := (sem_tuple [:: sreg ]) (only parsing).
+Notation ty_w ws := (sem_tuple [:: sword ws ]) (only parsing).
 
-Notation nzcvw_ty sz := (sem_tuple (sflags ++ [:: sword sz ])) (only parsing).
+Notation ty_nzc_r := (sem_tuple (snzc ++ [:: sreg ])) (only parsing).
+Notation ty_nzcv_r := (sem_tuple (snzcv ++ [:: sreg ])) (only parsing).
+Notation ty_nzcv_w ws := (sem_tuple (snzcv ++ [:: sword ws ])) (only parsing).
 
 
 (* -------------------------------------------------------------------- *)
 (* Common argument descriptions.*)
 
-Definition rflags_ad : seq arg_desc := map F rflags.
+Definition ad_nzc : seq arg_desc := map F [:: NF; ZF; CF ].
+Definition ad_nzcv : seq arg_desc := map F [:: NF; ZF; CF; VF ].
 
 
 (* -------------------------------------------------------------------- *)
@@ -360,39 +247,76 @@ Definition reg_addr_ak := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
 (* -------------------------------------------------------------------- *)
 (* Common flag definitions. *)
 
-Definition NF_of_word (sz : wsize) (w : word sz) := msb w.
-Definition ZF_of_word (sz : wsize) (w : word sz) := w == 0%R.
+Definition NF_of_word (ws : wsize) (w : word ws) := msb w.
+Definition ZF_of_word (ws : wsize) (w : word ws) := w == 0%R.
 
 (* Compute the value of the flags for an arithmetic operation.
- * For instance, for <+> a binary operation, this function should be called
- * with
- *   res = w <+> w'
- *   res_unsigned = wunsigned w Z.<+> wunsigned w'
- *   res_signed = wsigned w Z.<+> wsigned w'
- *)
+   For instance, for <+> a binary operation, this function should be called
+   with
+     res = w <+> w'
+     res_unsigned = wunsigned w Z.<+> wunsigned w'
+     res_signed = wsigned w Z.<+> wsigned w'
+*)
 Definition nzcv_of_aluop
-  {sz : wsize}
-  (res : word sz)     (* Actual result. *)
+  {ws : wsize}
+  (res : word ws)     (* Actual result. *)
   (res_unsigned : Z)  (* Result with unsigned interpretation. *)
   (res_signed : Z)    (* Result with signed interpretation. *)
-  : nzcv_ty :=
+  : ty_nzcv :=
   (:: Some (NF_of_word res)                 (* NF *)
     , Some (ZF_of_word res)                 (* ZF *)
     , Some (wunsigned res != res_unsigned)  (* CF *)
     & Some (wsigned res != res_signed)      (* VF *)
   ).
 
-Definition nzcvw_of_aluop (sz : wsize) (w : word sz) (wu ws : Z) :=
-  merge_tuple (nzcv_of_aluop w wu ws) (w : sem_tuple [:: sword sz ]).
-
+Definition nzcv_w_of_aluop {ws : wsize} (w : word ws) (wun wsi : Z) :=
+  merge_tuple (nzcv_of_aluop w wun wsi) (w : ty_w ws).
 
 (* -------------------------------------------------------------------- *)
 (* Flag setting transformations.
- * Instruction descriptions are defined setting flags. The case where
- * the flags should not be set is considered with `drop_nzcv`.
- *)
+   Instruction descriptions are defined setting flags. The case where
+   the flags should not be set is considered with `drop_nzcv`. *)
 
-Notation behead4 xs := (behead (behead (behead (behead xs)))).
+Notation beheadn n xs := (ssrnat.iter n behead xs).
+Notation behead3 xs := (beheadn 3 xs).
+Notation behead4 xs := (beheadn 4 xs).
+
+#[ local ]
+Lemma size_beheadn {A B} {n : nat} {xs : seq A} {ys : seq B} :
+  size xs == size ys
+  -> size (beheadn n xs) == size (beheadn n ys).
+Proof.
+  move=> h.
+  elim: n => [|n'].
+  - exact: h.
+  rewrite !size_behead -!/(beheadn n' _).
+  by move=> /eqP <-.
+Qed.
+
+#[ local ]
+Lemma all_beheadn {A} {p : A -> bool} {n : nat} {xs : seq A} :
+  all p xs
+  -> all p (beheadn n xs).
+Proof.
+  move=> h. elim: n => // n' hind. exact: all_behead hind.
+Qed.
+
+#[ local ]
+Lemma all2_beheadn
+  {A B} {p : A -> B -> bool} {n : nat} {xs : seq A} {ys : seq B} :
+  all2 p xs ys
+  -> all2 p (beheadn n xs) (beheadn n ys).
+Proof.
+  move=> h.
+  elim: n => [|n' hind].
+  - exact: h.
+  exact: all2_behead hind.
+Qed.
+
+Definition drop_semi_nzc
+  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
+  sem_prod tin (exec (sem_tuple (behead3 tout))) :=
+  behead_tuple (behead_tuple (behead_tuple semi)).
 
 Definition drop_semi_nzcv
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
@@ -400,31 +324,31 @@ Definition drop_semi_nzcv
   behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
 
 #[ local ]
-Lemma drop_nzcv_eq_size {A B} {p} {xs : seq A} {ys : seq B} :
+Lemma drop_eq_size {A B} {p} {n : nat} {xs : seq A} {ys : seq B} :
   p && (size xs == size ys)
-  -> p && (size (behead4 xs) == size (behead4 ys)).
-Proof.
-  move=> /andP [] Hp /eqP Hxy.
-  apply/andP.
-  by rewrite !size_behead Hxy.
-Qed.
+  -> p && (size (beheadn n xs) == size (beheadn n ys)).
+Proof. move=> /andP [-> hsize]. exact: size_beheadn. Qed.
 
-#[ local ]
-Lemma drop_nzcv_check_dest
-  {A B} {p : A -> B -> bool} {xs : seq A} {ys : seq B} :
-  all2 p xs ys -> all2 p (behead4 xs) (behead4 ys).
-Proof.
-  move=> H.
-  by do 4 apply: all2_behead.
-Qed.
-
-#[ local ]
-Lemma drop_nzcv_tout_narr {A} {p : A -> bool} {xs : seq A} :
-  all p xs -> all p (behead4 xs).
-Proof.
-  move=> H.
-  by do 4 apply: all_behead.
-Qed.
+Definition drop_nzc (idt : instr_desc_t) : instr_desc_t :=
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := id_tin idt;
+    id_in := id_in idt;
+    id_tout := behead3 (id_tout idt);
+    id_out := behead3 (id_out idt);
+    id_semi := drop_semi_nzc (id_semi idt);
+    id_nargs := id_nargs idt;
+    id_args_kinds := id_args_kinds idt;
+    id_eq_size := drop_eq_size (id_eq_size idt);
+    id_tin_narr := id_tin_narr idt;
+    id_tout_narr := all_beheadn (id_tout_narr idt);
+    id_check_dest := all2_beheadn (id_check_dest idt);
+    id_str_jas := id_str_jas idt;
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
+    id_pp_asm := id_pp_asm idt;
+  |}.
+Arguments drop_nzc : clear implicits.
 
 Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
   {|
@@ -436,13 +360,13 @@ Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
     id_semi := drop_semi_nzcv (id_semi idt);
     id_nargs := id_nargs idt;
     id_args_kinds := id_args_kinds idt;
-    id_eq_size := drop_nzcv_eq_size (id_eq_size idt);
+    id_eq_size := drop_eq_size (id_eq_size idt);
     id_tin_narr := id_tin_narr idt;
-    id_tout_narr := drop_nzcv_tout_narr (id_tout_narr idt);
-    id_check_dest := drop_nzcv_check_dest (id_check_dest idt);
+    id_tout_narr := all_beheadn (id_tout_narr idt);
+    id_check_dest := all2_beheadn (id_check_dest idt);
     id_str_jas := id_str_jas idt;
-    id_wsize := reg_size;
-    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments drop_nzcv : clear implicits.
@@ -450,16 +374,15 @@ Arguments drop_nzcv : clear implicits.
 
 (* -------------------------------------------------------------------- *)
 (* Conditional transformations.
- * Instruction descriptions are defined unconditionally. The following
- * transformation converts an unconditional instruction into a conditional
- * one.
- * The output type is unchanged.
- * The input type is expanded with:
- * - A boolean. It is used to determine if the instruction is executed
- * - The output type. It is used to return the unchanged values if the
- *   instruction is not exectuted
- * The semantics and the rest of the fields are updated accordingly.
- *)
+   Instruction descriptions are defined unconditionally. The following
+   transformation converts an unconditional instruction into a conditional
+   one.
+   The output type is unchanged.
+   The input type is expanded with:
+   - A boolean. It is used to determine if the instruction is executed
+   - The output type. It is used to return the unchanged values if the
+     instruction is not exectuted
+   The semantics and the rest of the fields are updated accordingly. *)
 
 #[ local ]
 Lemma mk_cond_eq_size
@@ -519,8 +442,8 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
     id_tout_narr := id_tout_narr idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
-    id_wsize := reg_size;
-    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_cond : clear implicits.
@@ -528,9 +451,9 @@ Arguments mk_cond : clear implicits.
 
 (* -------------------------------------------------------------------- *)
 (* Shift transformations.
- * Instruction descriptions are defined without optionally shifted registers.
- * The following transformation adds a shift argument to an instruction
- * and updates the semantics and the rest of the fields accordingly. *)
+   Instruction descriptions are defined without optionally shifted registers.
+   The following transformation adds a shift argument to an instruction
+   and updates the semantics and the rest of the fields accordingly. *)
 
 Definition mk_semi_shifted
   {A} (sk : shift_kind) (semi : sem_prod [:: sreg; sreg ] (exec A)) :
@@ -581,8 +504,8 @@ Definition mk_shifted (sk : shift_kind) (idt : instr_desc_t) semi' :
     id_tout_narr := id_tout_narr idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
-    id_wsize := reg_size;
-    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_wsize := id_wsize idt;
+    id_safe := id_safe idt;
     id_pp_asm := id_pp_asm idt;
   |}.
 Arguments mk_shifted : clear implicits.
@@ -623,14 +546,17 @@ Section ARM_INSTR.
 Context
   (opts : arm_options).
 
-Definition arm_ADD_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
-  let res :=
-    nzcvw_of_aluop
-      (wn + wm)
-      (wunsigned wn + wunsigned wm)%Z
+Definition arm_id_semi (wn : ty_reg) : exec ty_reg :=
+  ok wn.
+
+Definition arm_ADD_semi (wn wm : ty_reg) : exec ty_nzcv_r :=
+  let x :=
+    nzcv_w_of_aluop
+      (wn + wm)%R
+      (wunsigned wn + wunsigned wn)%Z
       (wsigned wn + wsigned wm)%Z
   in
-  ok res.
+  ok x.
 
 Definition arm_ADD_instr : instr_desc_t :=
   let mn := ADD in
@@ -639,8 +565,8 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
-      id_tout := sflags ++ [:: sreg ];
-      id_out := rflags_ad ++ [:: E 0 ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
       id_semi := arm_ADD_semi;
       id_nargs := 3;
       id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
@@ -663,14 +589,15 @@ Definition arm_ADD_instr : instr_desc_t :=
   then x
   else drop_nzcv x.
 
-Definition arm_SUB_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
-  let res :=
-    nzcvw_of_aluop
-      (wn - wm)
-      (wunsigned wn - wunsigned wm)%Z
-      (wsigned wn - wsigned wm)%Z
+Definition arm_SUB_semi (wn wm : ty_reg) : exec ty_nzcv_r :=
+  let wmnot := wnot wm in
+  let x :=
+    nzcv_w_of_aluop
+      (wn + wmnot + 1)%R
+      (wunsigned wn + wunsigned wmnot + 1)%Z
+      (wsigned wn + wsigned wmnot + 1)%Z
   in
-  ok res.
+  ok x.
 
 Definition arm_SUB_instr : instr_desc_t :=
   let mn := SUB in
@@ -679,8 +606,8 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
-      id_tout := sflags ++ [:: sreg ];
-      id_out := rflags_ad ++ [:: E 0 ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
       id_semi := arm_SUB_semi;
       id_nargs := 3;
       id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
@@ -703,12 +630,11 @@ Definition arm_SUB_instr : instr_desc_t :=
   then x
   else drop_nzcv x.
 
-Definition arm_AND_semi (wn wm : wreg_ty) : exec nzcvr_ty :=
+Definition arm_AND_semi (wn wm : ty_reg) : exec ty_nzc_r :=
   let res := wand wn wm in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
        , None (* TODO_ARM: Complete. C depends on the shift. *)
-       , None (* TODO_ARM: Complete. V should be unchanged. *)
        & res
      ).
 
@@ -719,8 +645,8 @@ Definition arm_AND_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
       id_in := [:: E 1; E 2 ];
-      id_tout := sflags ++ [:: sreg ]; (* TODO_ARM: Does not set V. *)
-      id_out := rflags_ad ++ [:: E 0 ]; (* TODO_ARM: Does not set V. *)
+      id_tout := snzc_r;
+      id_out := ad_nzc ++ [:: E 0 ];
       id_semi := arm_AND_semi;
       id_nargs := 3;
       id_args_kinds := reg_reg_reg_ak ++ reg_reg_imm_ak;
@@ -741,11 +667,10 @@ Definition arm_AND_instr : instr_desc_t :=
   in
   if set_flags opts
   then x
-  else drop_nzcv x.
+  else drop_nzc x.
 
-Definition arm_MOV_semi {sz : wsize} (wn : word sz) :
-  exec (sem_tuple (sflags ++ [:: sword sz ])) :=
-  ok (nzcvw_of_aluop wn (wunsigned wn) (wsigned wn)).
+Definition arm_MOV_semi {ws : wsize} (wn : word ws) : exec (ty_nzcv_w ws) :=
+  ok (nzcv_w_of_aluop wn (wunsigned wn) (wsigned wn)).
 
 Definition arm_MOV_instr : instr_desc_t :=
   let mn := MOV in
@@ -754,8 +679,8 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
       id_in := [:: E 1 ];
-      id_tout := sflags ++ [:: sreg ];
-      id_out := rflags_ad ++ [:: E 0 ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
       id_semi := arm_MOV_semi;
       id_nargs := 2;
       id_args_kinds := reg_reg_ak ++ reg_imm_ak;
@@ -773,8 +698,41 @@ Definition arm_MOV_instr : instr_desc_t :=
   then x
   else drop_nzcv x.
 
-Definition arm_LDR_semi (wn : wreg_ty) : exec wreg_ty :=
-  ok wn.
+Definition arm_CMP_semi (wn wm : ty_reg) : exec ty_nzcv :=
+  let wmnot := wnot wm in
+  let res :=
+    nzcv_of_aluop
+      (wn + wmnot + 1)%R
+      (wunsigned wn + wunsigned wmnot + 1)%Z
+      (wsigned wn + wsigned wmnot + 1)%Z
+  in
+  ok res.
+
+Definition arm_CMP_instr : instr_desc_t :=
+  let mn := CMP in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 0; E 1 ];
+      id_tout := snzcv;
+      id_out := ad_nzcv;
+      id_semi := arm_CMP_semi;
+      id_nargs := 2;
+      id_args_kinds := reg_reg_ak ++ reg_imm_ak;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+  in
+  if has_shift opts is Some sk
+  then mk_shifted sk x (mk_semi_shifted sk (id_semi x))
+  else x.
 
 Definition arm_LDR_instr : instr_desc_t :=
   let mn := LDR in
@@ -784,7 +742,7 @@ Definition arm_LDR_instr : instr_desc_t :=
     id_in := [:: E 1 ];
     id_tout := [:: sreg ];
     id_out := [:: E 0 ];
-    id_semi := arm_LDR_semi;
+    id_semi := arm_id_semi;
     id_nargs := 2;
     id_args_kinds := reg_addr_ak;
     id_eq_size := refl_equal;
@@ -797,9 +755,6 @@ Definition arm_LDR_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
-Definition arm_STR_semi (wn : wreg_ty) : exec wreg_ty :=
-  ok wn.
-
 Definition arm_STR_instr : instr_desc_t :=
   let mn := STR in
   {|
@@ -808,7 +763,7 @@ Definition arm_STR_instr : instr_desc_t :=
     id_in := [:: E 0 ];
     id_tout := [:: sreg ];
     id_out := [:: E 1 ];
-    id_semi := arm_STR_semi;
+    id_semi := arm_id_semi;
     id_nargs := 2;
     id_args_kinds := reg_addr_ak;
     id_eq_size := refl_equal;
@@ -834,9 +789,9 @@ Definition mn_desc (mn : arm_mnemonic) (opts : arm_options) : instr_desc_t :=
     | SUB => arm_SUB_instr
     | AND => arm_AND_instr
     | MOV => arm_MOV_instr
+    | CMP => arm_CMP_instr
     | LDR => arm_LDR_instr
     | STR => arm_STR_instr
-    | _ => TODO_ARM "mn_desc"
     end
   in
   desc opts.
@@ -868,7 +823,7 @@ Definition arm_asm_i := @asm_i _ _ _ _ _ _ _ arm_op_decl.
 (* -------------------------------------------------------------------- *)
 (* Miscellaneous functions. *)
 
-Definition load_op_of_wsize (ws : wsize) : option arm_mnemonic :=
+Definition load_mn_of_wsize (ws : wsize) : option arm_mnemonic :=
   match ws with
   | U8 => None (* TODO_ARM: Complete. *)
   | U16 => None (* TODO_ARM: Complete. *)
@@ -878,7 +833,7 @@ Definition load_op_of_wsize (ws : wsize) : option arm_mnemonic :=
   | U256 => None
   end.
 
-Definition store_op_of_wsize (ws : wsize) : option arm_mnemonic :=
+Definition store_mn_of_wsize (ws : wsize) : option arm_mnemonic :=
   match ws with
   | U8 => None (* TODO_ARM: Complete. *)
   | U16 => None (* TODO_ARM: Complete. *)

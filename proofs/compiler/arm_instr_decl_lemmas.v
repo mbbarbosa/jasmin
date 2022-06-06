@@ -3,10 +3,11 @@ From mathcomp Require Import
   all_algebra.
 From CoqWord Require Import ssrZ.
 
-Require Import utils.
+Require Import psem.
 
 Require Import
   arm_decl
+  arm_extra
   arm_instr_decl.
 
 Set Implicit Arguments.
@@ -21,19 +22,10 @@ Lemma mn_desc_is_conditional mn sf ic hs ic' :
     {| set_flags := sf; is_conditional := ic'; has_shift := hs; |}
   in
   mn_desc mn opts = mn_desc mn opts'.
-Proof.
-  case: mn => //=.
+Proof. by case: mn. Qed.
 
-  (* Should be done by this point. *)
-  all:
-    match goal with
-    | [|- TODO_ARM _ _ = TODO_ARM _ _ ] => exact: TODO_ARM_PROOF
-    end.
-Qed.
-
-(* Comparison instructions ignore [set_flags]. *)
-Lemma cmpmn_opts mn sf ic hs sf' :
-  mn \in comparison_mnemonics
+Lemma ignore_set_flags mn sf ic hs sf' :
+  mn \notin set_flags_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
      in
@@ -41,34 +33,15 @@ Lemma cmpmn_opts mn sf ic hs sf' :
        {| set_flags := sf'; is_conditional := ic; has_shift := hs; |}
      in
      mn_desc mn opts = mn_desc mn opts'.
-Proof.
-  case: mn => //=.
+Proof. by case: mn. Qed.
 
-  (* Should be done by this point. *)
-  all: move=> _.
-  all:
-    match goal with
-    | [|- TODO_ARM _ _ = TODO_ARM _ _ ] => exact: TODO_ARM_PROOF
-    end.
-Qed.
-
-(* Memory instructions ignore [set_flags] and [has_shift]. *)
-Lemma memmn_opts mn sf ic hs sf' hs' :
-  mn \in memory_mnemonics
+Lemma ignore_has_shift mn sf ic hs hs' :
+  mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
      in
      let opts' :=
-       {| set_flags := sf'; is_conditional := ic; has_shift := hs'; |}
+       {| set_flags := sf; is_conditional := ic; has_shift := hs'; |}
      in
      mn_desc mn opts = mn_desc mn opts'.
-Proof.
-  case: mn => //=.
-
-  (* Should be done by this point. *)
-  all: move=> _.
-  all:
-    match goal with
-    | [|- TODO_ARM _ _ = TODO_ARM _ _ ] => exact: TODO_ARM_PROOF
-    end.
-Qed.
+Proof. by case: mn. Qed.
