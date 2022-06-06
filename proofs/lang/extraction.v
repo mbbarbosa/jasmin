@@ -1,6 +1,6 @@
 Require Import var compiler.
-Require x86_params x86_sem.
 Require arm_params arm_sem.
+Require x86_params x86_sem.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.

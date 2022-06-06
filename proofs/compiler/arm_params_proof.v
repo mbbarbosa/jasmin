@@ -52,12 +52,12 @@ Lemma addiP s1 e i x tag ofs w s2 :
   -> psem.sem_i P' w s1 (addi x tag e ofs) s2.
 Proof.
   move=> he hx.
-  apply psem.Eopn.
+  apply: psem.Eopn.
   rewrite /sem_sopn /=.
   rewrite P'_globs.
   rewrite /exec_sopn /=.
   move: he.
-  t_xrbindP=> _ -> /= -> /=.
+  t_xrbindP=> ? -> /= -> /=.
   rewrite zero_extend_u.
   by rewrite hx.
 Qed.
@@ -81,7 +81,7 @@ Proof.
   move=> P'_globs he.
   rewrite /arm_mov_ofs.
   move=> [<-].
-  by apply addiP.
+  by apply: addiP.
 Qed.
 
 Definition arm_hsaparams is_regx : h_stack_alloc_params (ap_sap arm_params is_regx) :=
@@ -279,23 +279,203 @@ Proof.
   rewrite -get_rf_to_bool_of_rbool. by case: r.
 Qed.
 
-Lemma not_condtP c rf b :
+Lemma condt_notP rf c b :
   eval_cond rf c = ok b
-  -> eval_cond rf (not_condt c) = ok (negb b).
+  -> eval_cond rf (condt_not c) = ok (negb b).
 Proof.
   case: c => /=.
 
-  (* These conditions corresponds to a single flag. *)
-  all: try by move ->.
+  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
+     Rewrite all equalities, simplify and case all booleans. *)
+  all: t_xrbindP=> *.
+  all: subst=> /=.
+  all:
+    repeat
+      match goal with
+      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
+      end.
+  all:
+    by repeat
+      match goal with
+      | [ b : bool |- _ ] => case: b
+      end.
+Qed.
 
-  (* These correspond to a combination of flags.
-     Introduce them and case on their values. *)
-  all: t_xrbindP.
-  all: repeat
-         match goal with
-           [ |- forall (_ : bool), _ -> _ ] => move=> [] ->
-         end.
-  all: by move=> <-.
+Lemma condt_andP rf c0 c1 c b0 b1 :
+  condt_and c0 c1 = Some c
+  -> eval_cond rf c0 = ok b0
+  -> eval_cond rf c1 = ok b1
+  -> eval_cond rf c = ok (b0 && b1).
+Proof.
+  move: c0 c1 => [] [] //.
+  all: move=> [?]; subst c.
+  all: rewrite /eval_cond /=.
+
+  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
+     Rewrite all equalities, simplify and case all booleans. *)
+  all: t_xrbindP=> *.
+  all: subst=> /=.
+  all:
+    repeat
+      match goal with
+      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
+      end.
+  all:
+    by repeat
+      match goal with
+      | [ b : bool |- _ ] => case: b
+      end.
+Qed.
+
+Lemma condt_orP rf c0 c1 c b0 b1 :
+  condt_or c0 c1 = Some c
+  -> eval_cond rf c0 = ok b0
+  -> eval_cond rf c1 = ok b1
+  -> eval_cond rf c = ok (b0 || b1).
+Proof.
+  move: c0 c1 => [] [] //.
+  all: move=> [?]; subst c.
+  all: rewrite /eval_cond /=.
+
+  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
+     Rewrite all equalities, simplify and case all booleans. *)
+  all: t_xrbindP=> *.
+  all: subst=> /=.
+  all:
+    repeat
+      match goal with
+      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
+      end.
+  all:
+    by repeat
+      match goal with
+      | [ b : bool |- _ ] => case: b
+      end.
+Qed.
+
+Lemma eval_assemble_cond_Pvar ii m rf x r v :
+  eqflags m rf
+  -> of_var_e ii (gv x) = ok r
+  -> get_gvar [::] (evm m) x = ok v
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
+       & value_uincl v v'.
+Proof.
+  move=> eqf hr hv.
+  have hincl := gxgetflag_ex eqf hr hv.
+  clear ii x m eqf hr hv.
+
+  change arm_sem.eval_cond with eval_cond.
+  rewrite condt_of_rflagP.
+
+  eexists; last exact: hincl.
+  clear v hincl.
+  exact: value_of_bool_to_bool_of_rbool.
+Qed.
+
+Lemma eval_assemble_cond_Onot rf c v v0 v1 :
+  value_of_bool (eval_cond (get_rf rf) c) = ok v1
+  -> value_uincl v0 v1
+  -> sem_sop1 Onot v0 = ok v
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) (condt_not c)) = ok v'
+       & value_uincl v v'.
+Proof.
+  move=> hv1 hincl.
+  move=> /sem_sop1I /= [b hb ?]; subst v.
+
+  have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
+  clear v0 v1 hincl hb hv1.
+
+  change arm_sem.eval_cond with eval_cond.
+  rewrite (condt_notP hc) {hc}.
+  by eexists.
+Qed.
+
+Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
+  is_rflags_GE r0 r1 = true
+  -> eqflags m rf
+  -> of_var_e ii (gv x0) = ok r0
+  -> get_gvar [::] (evm m) x0 = ok v0
+  -> of_var_e ii (gv x1) = ok r1
+  -> get_gvar [::] (evm m) x1 = ok v1
+  -> sem_sop2 Obeq v0 v1 = ok v
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
+Proof.
+  move=> hGE eqf hr0 hv0 hr1 hv1.
+
+  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
+  move: hb.
+  rewrite /mk_sem_sop2 /=.
+  move=> [?]; subst b.
+
+  have hincl0 := gxgetflag_ex eqf hr0 hv0.
+  have hincl1 := gxgetflag_ex eqf hr1 hv1.
+  clear ii m x0 x1 eqf hr0 hv0 hr1 hv1.
+
+  have ? := to_boolI hb0; subst v0.
+  have ? := to_boolI hb1; subst v1.
+  clear hb0 hb1.
+
+  move: r0 r1 hincl0 hincl1 hGE.
+  move=> [] [] // hincl0 hincl1 _.
+  all: rewrite 2!get_rf_to_bool_of_rbool.
+  all: rewrite (value_uinclE hincl0) {hincl0} /=.
+  all: rewrite (value_uinclE hincl1) {hincl1} /=.
+  all: by eexists.
+Qed.
+
+Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
+  condt_and c0 c1 = Some c
+  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_uincl v0 v0'
+  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_uincl v1 v1'
+  -> sem_sop2 Oand v0 v1 = ok v
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+Proof.
+  move=> hand hv0' hincl0 hv1' hincl1.
+  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
+
+  move: hb.
+  rewrite /mk_sem_sop2 /=.
+  move=> [?]; subst b.
+
+  have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
+  have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
+  clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
+
+  change arm_sem.eval_cond with eval_cond.
+  rewrite (condt_andP hand hc0 hc1) {hand hc0 hc1} /=.
+  by eexists.
+Qed.
+
+Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
+  condt_or c0 c1 = Some c
+  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_uincl v0 v0'
+  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_uincl v1 v1'
+  -> sem_sop2 Oor v0 v1 = ok v
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+Proof.
+  move=> hor hv0' hincl0 hv1' hincl1.
+  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
+
+  move: hb.
+  rewrite /mk_sem_sop2 /=.
+  move=> [?]; subst b.
+
+  have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
+  have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
+  clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
+
+  change arm_sem.eval_cond with eval_cond.
+  rewrite (condt_orP hor hc0 hc1) {hor hc0 hc1} /=.
+  by eexists.
 Qed.
 
 Lemma arm_eval_assemble_cond ii m rf e c v :
@@ -306,24 +486,42 @@ Lemma arm_eval_assemble_cond ii m rf e c v :
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /=.
-  elim: e c v => [||| x |||| op1 e hind |||] //= c v eqf. 
+  elim: e c v => [||| x |||| op1 e hind | op2 e0 hind0 e1 hind1 ||] //= c v eqf.
 
-  - t_xrbindP=> r ok_r <- ok_v.
-    have := gxgetflag_ex eqf ok_r ok_v.
-    change arm_sem.eval_cond with eval_cond.
-    rewrite condt_of_rflagP => hincl.
-    eexists; last exact: hincl.
-    exact: value_of_bool_to_bool_of_rbool.
+  - t_xrbindP=> r hr hc; subst c.
+    move=> hv.
+    exact: (eval_assemble_cond_Pvar eqf hr hv).
 
-  case: op1 => //.
-  t_xrbindP=> c' ok_c' <- ve ok_ve.
-  have hv' := hind _ _ eqf ok_c' ok_ve.
-  rewrite /sem_sop1 /=.
-  t_xrbindP=> b ok_b <-.
-  have := value_of_bool_uincl ok_b hv'.
-  change arm_sem.eval_cond with eval_cond.
-  move=> /not_condtP ->.
-  by eexists; first by reflexivity.
+  - case: op1 => //.
+    t_xrbindP=> c' hc' hc; subst c.
+    move=> v0 hv0 hsem.
+    have [v1 hv1 hincl1] := hind _ _ eqf hc' hv0.
+    clear ii m e eqf hc' hv0 hind.
+    exact: (eval_assemble_cond_Onot hv1 hincl1 hsem).
+
+  case: op2 => //.
+  - case: e0 hind0 => // x0 _.
+    case: e1 hind1 => // x1 _.
+    t_xrbindP=> r0 hr0 r1 hr1 //=.
+    case hGE: is_rflags_GE => // -[?]; subst c.
+    move=> v0 hv0 v1 hv1 hsem.
+    exact: (eval_assemble_cond_Obeq hGE eqf hr0 hv0 hr1 hv1 hsem).
+
+  - t_xrbindP=> c0 hass0 c1 hass1.
+    case hand: condt_and => [c'|] // [?]; subst c'.
+    move=> v0 hsem0 v1 hsem1 hsem.
+    have [v0' hv0' hincl0] := hind0 _ _ eqf hass0 hsem0.
+    have [v1' hv1' hincl1] := hind1 _ _ eqf hass1 hsem1.
+    clear eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
+    exact: (eval_assemble_cond_Oand hand hv0' hincl0 hv1' hincl1 hsem).
+
+  t_xrbindP=> c0 hass0 c1 hass1.
+  case hor: condt_or => [c'|] // [?]; subst c'.
+  move=> v0 hsem0 v1 hsem1 hsem.
+  have [v0' hv0' hincl0] := hind0 _ _ eqf hass0 hsem0.
+  have [v1' hv1' hincl1] := hind1 _ _ eqf hass1 hsem1.
+  clear eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
+  exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem).
 Qed.
 
 (* TODO_ARM: Is there a way of avoiding importing here? *)
@@ -359,16 +557,15 @@ Proof.
   move=> [[]] //.
   move=> [] //.
   move=> [] //.
-  move=> [[] [] [?|]] // _.
+  move=> [[] [] [?|]] _ //.
   rewrite /exec_sopn /=.
-  t_xrbindP=> w w'.
-  move=> hvx.
-  have [ws' [w'' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
+  t_xrbindP=> w w'' hvx.
+  have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
   rewrite /sopn_sem /=.
   rewrite /drop_semi_nzcv /=.
   move=> [<-] <-.
-  apply List.Forall2_cons; last done.
-  exact: word_uincl_zero_ext hws'.
+  apply: List.Forall2_cons; last done.
+  exact: (word_uincl_zero_ext w' hws').
 Qed.
 
 

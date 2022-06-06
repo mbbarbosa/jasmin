@@ -11,33 +11,24 @@ fn mov() -> reg u32 {
   n, z, c, v, _ = #MOVS(1);
 
   // Conditions.
-  x = #MOVcc(y, z, x);  // EQ
-  x = #MOVcc(y, !z, x); // NE
-  x = #MOVcc(y, c, x);  // CS
-  x = #MOVcc(y, !c, x); // CC
-  x = #MOVcc(y, n, x);  // MI
-  x = #MOVcc(y, !n, x); // PL
-  x = #MOVcc(y, v, x);  // VS
-  x = #MOVcc(y, !v, x); // VC
+  x = #MOVcc(x, z, x);            // EQ
+  x = #MOVcc(x, !z, x);           // NE
+  x = #MOVcc(x, c, x);            // CS
+  x = #MOVcc(x, !c, x);           // CC
+  x = #MOVcc(x, n, x);            // MI
+  x = #MOVcc(x, !n, x);           // PL
+  x = #MOVcc(x, v, x);            // VS
+  x = #MOVcc(x, !v, x);           // VC
+  x = #MOVcc(x, c && !z, x);      // HI
+  x = #MOVcc(x, !c || z, x);      // LS
+  x = #MOVcc(x, n == v, x);       // GE
+  x = #MOVcc(x, n != v, x);       // LT
+  x = #MOVcc(x, !z && n == v, x); // GT
+  x = #MOVcc(x, z || n != v, x);  // LE
 
   x = #MOVcc(1, !z, x);
-
-  // Should not be in an IT block.
-  x = #MOVcc(y, z, x);
-  x = #MOVcc(y, v, x);
-
-  // Should be in two IT blocks.
-  x = #MOVcc(y, z, x);
-  x = #MOVcc(y, !z, x);
-  x = #MOVcc(3, !z, x);
-  x = #MOVcc(8, z, x);
-  x = #MOVcc(y, !z, x);
-  x = #MOVcc(98, z, x);
-  x = #MOVcc(y, !z, x);
-  x = #MOVcc(1, z, x);
-
-  n, z, c, v, x = #MOVScc(y, z, n, z, c, v, x);
-  n, z, c, v, x = #MOVScc(49, z, n, z, c, v, x);
+  n, z, c, v, x = #MOVScc(y, !z, n, z, c, v, x);
+  n, z, c, v, x = #MOVScc(49, !!z, n, z, c, v, x);
 
   reg u32 res;
   res = x;

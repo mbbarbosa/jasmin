@@ -17,7 +17,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Axiom TODO_ARM : forall {A}, string -> A.
-Definition TODO_ARM_PROOF : forall {A}, A := TODO_ARM "proof".
+Definition TODO_ARM_PROOF : forall {A : Prop}, A := TODO_ARM "proof".
 
 (* ARM Cortex-M4 architecture
 
@@ -384,32 +384,6 @@ Proof.
   by move=> x y /eqP h; apply/eqP; case: x y h => -[]; vm_compute.
 Qed.
 
-Definition not_condt (c : condt) : condt :=
-  match c with
-  | EQ_ct => NE_ct
-  | NE_ct => EQ_ct
-  | CS_ct => CC_ct
-  | CC_ct => CS_ct
-  | MI_ct => PL_ct
-  | PL_ct => MI_ct
-  | VS_ct => VC_ct
-  | VC_ct => VS_ct
-  | HI_ct => LS_ct
-  | LS_ct => HI_ct
-  | GE_ct => LT_ct
-  | LT_ct => GE_ct
-  | GT_ct => LE_ct
-  | LE_ct => GT_ct
-  end.
-
-Definition condt_of_rflag (r : rflag) : condt :=
-  match r with
-  | NF => MI_ct
-  | ZF => EQ_ct
-  | CF => CS_ct
-  | VF => VS_ct
-  end.
-
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
@@ -533,10 +507,11 @@ Proof. by case:rx. Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)
+
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := U32
   ; xreg_size := U64
-  ; cond_eqC := eqTC_condt
+  ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
   ; toS_rx    := regx_toS
   ; toS_x     := xreg_toS

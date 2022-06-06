@@ -18,26 +18,21 @@ fn str(reg u32 arg) {
   n, z, c, v, _ = #MOVS(x);
 
   // Conditions.
-  [x] = x if z;  // EQ
-  [x] = x if !z; // NE
-  [x] = x if c;  // CS
-  [x] = x if !c; // CC
-  [x] = x if n;  // MI
-  [x] = x if !n; // PL
-  [x] = x if v;  // VS
-  [x] = x if !v; // VC
+  [x] = x if z;            // EQ
+  [x] = x if !z;           // NE
+  [x] = x if c;            // CS
+  [x] = x if !c;           // CC
+  [x] = x if n;            // MI
+  [x] = x if !n;           // PL
+  [x] = x if v;            // VS
+  [x] = x if !v;           // VC
+  [x] = x if c && !z;      // HI
+  [x] = x if !c || z;      // LS
+  [x] = x if n == v;       // GE
+  [x] = x if n != v;       // LT
+  [x] = x if !z && n == v; // GT
+  [x] = x if z || n != v;  // LE
 
-  // Should not be in an IT block.
-  [x] = x if z;
-  [x] = x if v;
-
-  // Should be in two IT blocks.
-  [x] = x if z;
   [x + arg] = x if !z;
-  [x + (arg * 4)] = x if !z;
-  [x + 2] = x if z;
-  [x + (arg * 4)] = x if !z;
-  [x] = x if z;
-  [x + (x * 8)] = x if !z;
-  [x] = x if z;
+  [x + arg * 4] = x if !z;
 }

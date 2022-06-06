@@ -1,5 +1,5 @@
 export
-fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
+fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
   reg u32 x;
   x = #AND(arg0, arg1);
 
@@ -19,39 +19,30 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
   x = #AND(x, arg0, #RRX(1));
 
   // Set flags.
-  reg bool n, z, v, c;
+  reg bool n, z, c, v;
   n, z, c, v, x = #ANDS(x, arg0);
   n, z, c, v, x = #ANDS(x, 1);
   n, z, c, v, x = #ANDS(x, arg0, #LSL(3));
 
   // Conditions.
-  x = #ANDcc(x, arg0, z, x);  // EQ
-  x = #ANDcc(x, arg0, !z, x); // NE
-  x = #ANDcc(x, arg0, c, x);  // CS
-  x = #ANDcc(x, arg0, !c, x); // CC
-  x = #ANDcc(x, arg0, n, x);  // MI
-  x = #ANDcc(x, arg0, !n, x); // PL
-  x = #ANDcc(x, arg0, v, x);  // VS
-  x = #ANDcc(x, arg0, !v, x); // VC
+  x = #ANDcc(x, arg0, z, x);            // EQ
+  x = #ANDcc(x, arg0, !z, x);           // NE
+  x = #ANDcc(x, arg0, c, x);            // CS
+  x = #ANDcc(x, arg0, !c, x);           // CC
+  x = #ANDcc(x, arg0, n, x);            // MI
+  x = #ANDcc(x, arg0, !n, x);           // PL
+  x = #ANDcc(x, arg0, v, x);            // VS
+  x = #ANDcc(x, arg0, !v, x);           // VC
+  x = #ANDcc(x, arg0, c && !z, x);      // HI
+  x = #ANDcc(x, arg0, !c || z, x);      // LS
+  x = #ANDcc(x, arg0, n == v, x);       // GE
+  x = #ANDcc(x, arg0, n != v, x);       // LT
+  x = #ANDcc(x, arg0, !z && n == v, x); // GT
+  x = #ANDcc(x, arg0, z || n != v, x);  // LE
 
-  x = #ANDcc(x, 1, c, x);
-
-  // Should not be in an IT block.
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, arg0, v, x);
-
-  // Should be in two IT blocks.
-  x = #ANDcc(x, arg0, z, x);
-  x = #ANDcc(x, 1, !z, x);
-  x = #ANDcc(x, arg0, !z, x);
-  x = #ANDcc(x, 5, z, x);
-  x = #ANDcc(x, arg0, !z, x);
-  x = #ANDcc(x, 43, z, x);
-  x = #ANDcc(x, 46, !z, x);
-  x = #ANDcc(x, arg0, z, x);
-
-  n, z, c, v, x = #ANDScc(x, arg0, z, n, z, c, v, x);
-  n, z, c, v, x = #ANDScc(x, 2, z, n, z, c, v, x);
+  x = #ANDcc(x, 1, !!!!z, x);
+  n, z, c, v, x = #ANDScc(x, arg0, n == v, n, z, c, v, x);
+  n, z, c, v, x = #ANDScc(x, 2, !c || z, n, z, c, v, x);
   x = #ANDcc(x, arg0, #LSL(3), z, x);
   n, z, c, v, x = #ANDScc(x, arg0, #LSL(3), z, n, z, c, v, x);
 

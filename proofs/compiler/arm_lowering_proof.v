@@ -347,8 +347,8 @@ Proof.
   all: rewrite hsem0 {hsem0} /=.
   all: have /= [w0 [w1 [w2 []]]] := sem_sop2I hsemw.
   all: clear hsemw.
-  all: move=> /to_wordI [ws0 [w0' [hws0 ? ?]]]; subst v0 w0.
-  all: move=> /to_wordI [ws1 [w1' [hws1 ? ?]]]; subst v1 w1.
+  all: move=> /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]]; subst v0 w0.
+  all: move=> /to_wordI [ws1 [w1' [? /truncate_wordP [hws1 ?]]]]; subst v1 w1.
   all: rewrite /mk_sem_sop2 /=.
   all: move=> [?]; subst w2.
   all: move=> /Vword_inj [?]; subst ws'.
@@ -389,8 +389,8 @@ Proof.
   all: rewrite hsem0 {hsem0} /=.
   all: have /= [w0 [w1 [w2 []]]] := sem_sop2I hsemw.
   all: clear hsemw.
-  all: move=> /to_wordI [ws0 [w0' [hws0 ? ?]]]; subst v0 w0.
-  all: move=> /to_wordI [ws1 [w1' [hws1 ? ?]]]; subst v1 w1.
+  all: move=> /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]]; subst v0 w0.
+  all: move=> /to_wordI [ws1 [w1' [? /truncate_wordP [hws1 ?]]]]; subst v1 w1.
   all: rewrite /mk_sem_sop2 /=.
   all: move=> [?]; subst w2.
   all: move=> /Vword_inj [?]; subst ws'.
