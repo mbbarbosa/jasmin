@@ -904,7 +904,7 @@ Lemma merge_varmaps_export_callP m fn args m' res :
   sem_one_varmap.sem_export_call p extra_free_registers var_tmp callee_saved global_data m fn args m' res.
 Proof.
   case => fd ok_fd Export.
-  move => /merge_varmaps_callP /(_ 1%positive fd _ _ ok_fd).
+  move => /merge_varmaps_callP /(_ dummy_instr_info fd _ _ ok_fd).
 
   case: (checkP ok_p ok_fd) => _ok_wrf.
   rewrite /check_fd; t_xrbindP => D.
