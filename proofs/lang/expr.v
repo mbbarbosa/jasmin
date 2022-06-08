@@ -238,6 +238,7 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
 Definition var_info := positive.
+Definition dummy_var_info : var_info := 1%positive.
 
 Record var_i := VarI {
   v_var :> var;
@@ -251,7 +252,7 @@ Notation vid ident :=
         vtype := sword Uptr;
         vname := ident%string;
       |};
-    v_info := xH;
+    v_info := dummy_var_info;
   |}.
 
 Definition var_i_beq x1 x2 :=
