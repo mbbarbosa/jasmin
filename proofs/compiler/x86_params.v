@@ -31,7 +31,7 @@ Unset Printing Implicit Defensive.
 (* Stack alloc parameters. *)
 
 Definition lea_ptr x y tag ofs : instr_r :=
-  Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
+  Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y ofs].
 
 Section IS_REGX.
 

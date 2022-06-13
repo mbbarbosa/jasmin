@@ -174,6 +174,7 @@ Record compiler_params
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
+  print_rmap       : instr_info -> table * Region.region_map -> table * Region.region_map;
 }.
 
 Context
@@ -310,6 +311,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
       (ao_globals ao)
       (ao_global_alloc ao)
       (ao_stack_alloc ao)
+      (print_rmap cparams)
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
