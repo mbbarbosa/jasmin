@@ -1,6 +1,7 @@
 module StackAlloc (Arch: Arch_full.Arch) : sig
 
   val memory_analysis :
+    (Stack_alloc.sub_region -> char list) ->
     (unit Conv.coq_tbl -> Format.formatter -> Compiler_util.pp_error -> unit) ->
     debug:bool ->
       (BinNums.positive -> Stack_alloc.table * Stack_alloc.Region.region_map ->

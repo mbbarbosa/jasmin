@@ -47,13 +47,22 @@ Definition mk_mov vpk :=
   | _ => MK_MOV
   end.
 
+(* FIXME:
+   too ad-hoc: either we don't want Papp1 (Oint_of_word _) here (i.e. we don't introduce it in stack_alloc)
+   or we use constant_prop? *)
+Definition is_zero e :=
+  match e with
+  | Pconst 0 | Papp1 (Oword_of_int _) (Pconst 0) => true
+  | _ => false
+  end.
+
 Definition x86_mov_ofs x tag vpk y ofs :=
   let addr :=
     if mk_mov vpk is MK_LEA
     then
       lea_ptr x y tag ofs
     else
-      if ofs == 0%Z
+      if is_zero ofs
       then mov_ws is_regx Uptr x y tag
       else lea_ptr x y tag ofs
   in
