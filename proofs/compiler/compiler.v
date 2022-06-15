@@ -306,6 +306,7 @@ Definition compiler_front_end string_of_sr (entries subroutines : seq funname) (
     stack_alloc.alloc_prog
       true
       saparams
+      (ap_is_move_op aparams)
       string_of_sr
       cparams.(fresh_reg)
       (global_static_data_symbol cparams)
