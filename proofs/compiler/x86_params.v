@@ -48,7 +48,7 @@ Definition mk_mov vpk :=
   end.
 
 (* FIXME:
-   too ad-hoc: either we don't want Papp1 (Oint_of_word _) here (i.e. we don't introduce it in stack_alloc)
+   too ad-hoc: either we don't want Papp1 (Oword_of_int _) here (i.e. we don't introduce it in stack_alloc)
    or we use constant_prop? *)
 Definition is_zero e :=
   match e with
