@@ -547,7 +547,7 @@ let main () =
                 match s with
                 | Valid -> Format.fprintf fmt "Valid"
                 | Unknown -> Format.fprintf fmt "Unknown"
-                | Borrowed z -> Format.fprintf fmt "Borrowed: @[<h>%a@]" pp_abstract_zone z
+                | Borrowed z -> Format.fprintf fmt "Borrowed: @[<h>%a@]" (Format.pp_print_list pp_abstract_zone) z
               in
               Format.fprintf fmt "%a -> %a -> %a@,"
                 (Printer.pp_var ~debug:true) (Conv.var_of_cvar tbl (Obj.magic r).r_slot)
@@ -564,10 +564,11 @@ let main () =
     in
 
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (fun sr -> Conv.string0_of_string (Format.asprintf "%a" pp_sub_region sr)) (Printer.pp_err ~debug:!debug) ~debug:!debug (fun ii trmap -> print_trmap ii trmap; trmap) tbl up
+      StackAlloc.memory_analysis (fun zs -> Conv.string0_of_string (Format.asprintf "%a" (Format.pp_print_list pp_abstract_zone) zs)) (fun sr -> Conv.string0_of_string (Format.asprintf "%a" pp_sub_region sr)) (Printer.pp_err ~debug:!debug) ~debug:!debug (fun ii trmap -> print_trmap ii trmap; trmap) tbl up
     in
 
     let cparams = {
+      Compiler.string_of_borrowed = (fun zs -> Conv.string0_of_string (Format.asprintf "%a" (Format.pp_print_list pp_abstract_zone) zs));
       Compiler.string_of_sr = (fun sr -> Conv.string0_of_string (Format.asprintf "%a" pp_sub_region sr));
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
