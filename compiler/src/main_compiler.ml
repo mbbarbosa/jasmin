@@ -563,8 +563,13 @@ let main () =
       Format.eprintf "@[<v>%a@,%a@,%a@]@." pp_ii ii pp_tab (fst trmap) pp_rmap (snd trmap)
     in
 
+    let print_trmap ii trmap =
+      if !Glob_options.print_stack_alloc_checker then print_trmap ii trmap;
+      trmap
+    in
+
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (fun zs -> Conv.string0_of_string (Format.asprintf "%a" (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ") pp_abstract_zone) zs)) (fun sr -> Conv.string0_of_string (Format.asprintf "%a" pp_sub_region sr)) (Printer.pp_err ~debug:!debug) ~debug:!debug (fun ii trmap -> print_trmap ii trmap; trmap) tbl up
+      StackAlloc.memory_analysis (fun zs -> Conv.string0_of_string (Format.asprintf "%a" (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ") pp_abstract_zone) zs)) (fun sr -> Conv.string0_of_string (Format.asprintf "%a" pp_sub_region sr)) (Printer.pp_err ~debug:!debug) ~debug:!debug print_trmap tbl up
     in
 
     let cparams = {
@@ -602,7 +607,7 @@ let main () =
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
       Compiler.is_regx      = is_regx tbl;
-      Compiler.print_rmap = (fun ii trmap -> print_trmap ii trmap; trmap);
+      Compiler.print_rmap = print_trmap;
     } in
 
     let export_functions, subroutines =
