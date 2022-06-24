@@ -146,8 +146,9 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params
   `{asm_e : asm_extra} 
   (fresh_vars lowering_options : Type) := {
-  string_of_borrowed     : list stack_alloc.abstract_zone -> string;
-  string_of_sr     : stack_alloc.sub_region -> string;
+  string_of_sr     : sub_region -> string;
+  string_of_borrowed : seq symbolic_zone -> string;
+  print_trmap      : instr_info -> table * Region.region_map -> table * Region.region_map;
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -176,7 +177,6 @@ Record compiler_params
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
-  print_rmap       : instr_info -> table * Region.region_map -> table * Region.region_map;
 }.
 
 Context
@@ -305,18 +305,18 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
   Let ps :=
     stack_alloc.alloc_prog
-      cparams.(string_of_borrowed)
       cparams.(string_of_sr)
+      cparams.(string_of_borrowed)
       true
       saparams
       (ap_is_move_op aparams)
+      cparams.(print_trmap)
       cparams.(fresh_reg)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)
       (ao_global_alloc ao)
       (ao_stack_alloc ao)
-      (print_rmap cparams)
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
