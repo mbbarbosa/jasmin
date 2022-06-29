@@ -19,6 +19,7 @@ src/Main_compiler
 src/Parseio
 src/Parser
 src/Ppasm
+src/Pp_stack_alloc
 src/Pretyping
 src/Printer
 src/PrintLinear

@@ -26,8 +26,8 @@ let pp_slot tbl fmt ((x, ws), ofs) =
 let pp_zone fmt z =
   let open Stack_alloc in
   Format.fprintf fmt "[%a:%a]"
-    Z.pp_print (Conv.z_of_cz z.z_ofs)
-    Z.pp_print (Conv.z_of_cz z.z_len)
+    Z.pp_print (Conv.z_of_cz z.cs_ofs)
+    Z.pp_print (Conv.z_of_cz z.cs_len)
 
 let pp_ptr_kind_init tbl fmt pki =
   let open Stack_alloc in
@@ -89,7 +89,7 @@ module StackAlloc (Arch: Arch_full.Arch) = struct
 
 module Regalloc = Regalloc (Arch)
 
-let memory_analysis string_of_borrowed string_of_sr pp_err ~debug print_rmap tbl up =
+let memory_analysis string_of_borrowed string_of_sr print_trmap pp_err ~debug tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
   let gao, sao = Varalloc.alloc_stack_prog Arch.reg_size Arch.aparams.ap_is_move_op p in
@@ -112,8 +112,8 @@ let memory_analysis string_of_borrowed string_of_sr pp_err ~debug print_rmap tbl
         pp_align    = pi.pi_align;
       }) in
     let conv_sub (i:Interval.t) = 
-      Stack_alloc.{ z_ofs = Conv.cz_of_int i.min; 
-                    z_len = Conv.cz_of_int (Interval.size i) } in
+      Stack_alloc.{ cs_ofs = Conv.cz_of_int i.min;
+                    cs_len = Conv.cz_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
       | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
       | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
@@ -165,7 +165,7 @@ let memory_analysis string_of_borrowed string_of_sr pp_err ~debug print_rmap tbl
 
   let is_regx x = is_regx (Conv.var_of_cvar tbl x) in
   let sp' = 
-    match Stack_alloc.alloc_prog string_of_borrowed string_of_sr Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) Arch.aparams.ap_is_move_op (Conv.fresh_reg_ptr tbl) crip crsp gao.gao_data cglobs cget_sao print_rmap up with
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp string_of_sr string_of_borrowed false (Arch.aparams.ap_sap is_regx) Arch.aparams.ap_is_move_op print_trmap (Conv.fresh_reg_ptr tbl) crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in
