@@ -364,8 +364,16 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
     | Export -> List.map (fun _ -> None) fd.f_ret 
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
-
-  let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
+  
+  let ra_on_stack = 
+    match fd.f_annot.retaddr_kind with
+    | Some OnStack -> true 
+    | _ -> false in
+    
+  let sao_align, sao_slots, sao_size = 
+    alloc_local_stack 
+      (* FIXME should be more precise than 32 *)
+      (if ra_on_stack then 32 else 0) (Sv.elements slots) atbl in
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 

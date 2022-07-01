@@ -209,10 +209,15 @@ let memory_analysis pp_err ~debug tbl up =
     let ra = V.mk "RA" (Stack Direct) (tu Arch.reg_size) L._dummy [] in
     let extra =
       let extra = to_save in
-      let extra = if rastack then ra :: extra else extra in
+(*      let extra = if rastack then ra :: extra else extra in *)
       if has_stack && ro.ro_rsp = None then extra @ [rsp]
       else extra in
     let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+    let extrapos = if rastack then (ra, 0):: extrapos else extrapos in
+    let align = 
+      if rastack && wsize_lt align Arch.reg_size then Arch.reg_size
+      else align in
+
     let align, max_stk = 
       Sf.fold (fun fn (align, max_stk) ->
           let sao = get_sao fn in

@@ -250,7 +250,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   Let _ := assert match sf_return_address e with
                   | RAnone => true
                   | RAreg ra => vtype ra == sword Uptr
-                  | RAstack ofs => check_stack_ofs e ofs Uptr
+                  | RAstack ofs => true (* check_stack_ofs e ofs Uptr *)
                   end
                   (E.error "bad return-address") in
   Let _ := assert ((sf_return_address e != RAnone)
@@ -309,10 +309,12 @@ Definition lstore
   : linstr :=
   lassign ii (Lmem ws rd (cast_const ofs)) ws (Pvar r0).
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack:bool) : lcmd :=
   if sz == 0%Z
   then [::]
-  else let args := if free
+  else 
+    let sz := if rastack then (sz - wsize_size Uptr)%Z else sz in
+    let args := if free
                    then (lip_allocate_stack_frame liparams) rspi sz
                    else (lip_free_stack_frame liparams) rspi sz
        in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
@@ -426,9 +428,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let ra := sf_return_address e in
       if ra == RAnone then (lbl, lc)
       else
+        let rastack := if ra is RAstack _ then true else false in
         let sz := stack_frame_allocation_size e in
-        let before := allocate_stack_frame false ii sz in
-        let after := allocate_stack_frame true ii sz in
+        let before := allocate_stack_frame false ii sz rastack in
+        let after := allocate_stack_frame true ii sz rastack in
         let lret := lbl in
         let lbl := next_lbl lbl in
         let lcall := (fn', if fn' == fn
@@ -464,12 +467,12 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 7. Continue.
            *)
           if extra_free_registers ii is Some ra
-          then let glob_ra := Gvar (VarI ra xH) Slocal in
+          then (*let glob_ra := Gvar (VarI ra xH) Slocal in *)
                (lbl, before
-                       ++ MkLI ii (LstoreLabel ra lret)
-                       :: lstore ii rspi z Uptr glob_ra
-                       :: MkLI ii (Lgoto lcall)
-                       :: MkLI ii (Llabel lret)
+(*                       ++ MkLI ii (LstoreLabel ra lret) *)
+(*                       :: lstore ii rspi z Uptr glob_ra *)
+                       ++ MkLI ii (Lcall lcall)
+                    (*   :: MkLI ii (Llabel lret) *)
                        :: after
                        ++ lc
                )
@@ -489,7 +492,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
        , 2%positive
        )
      | RAstack z =>
-       ( [:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ]
+       ( [:: MkLI xH Lret ]
        , [:: MkLI xH (Llabel 1) ]
        , 2%positive
        )
@@ -505,7 +508,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
          let r := VarI x xH in
          ( [:: lmove xH rspi Uptr (Gvar r Slocal) ]
          , lmove xH r Uptr rspg
-             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
+             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e) false 
              ++ [:: ensure_rsp_alignment xH e.(sf_align) ]
          , 1%positive
          )
@@ -521,7 +524,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
          ( pop_to_save xH e.(sf_to_save)
              ++ [:: lload xH rspi Uptr rspi ofs ]
          , lmove xH tmp Uptr rspg
-             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
+             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e) false
              ++ ensure_rsp_alignment xH e.(sf_align)
              :: lstore xH rspi ofs Uptr (Gvar tmp Slocal)
              :: push_to_save xH e.(sf_to_save)
