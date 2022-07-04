@@ -133,10 +133,10 @@ Record wf_global g ofs ws := {
 Definition wbase_ptr sc :=
   if sc == Sglob then rip else rsp.
 
-Record wf_direct (x : var) (s : slot) ofs ws z sc := {
+Record wf_direct (x : var) (s : slot) ofs ws cs sc := {
   wfd_slot : Sv.In s Slots;
-  wfd_size : size_slot x <= z.(z_len);
-  wfd_zone : 0 <= z.(z_ofs) /\ z.(z_ofs) + z.(z_len) <= size_slot s;
+  wfd_size : size_slot x <= cs.(cs_len);
+  wfd_zone : 0 <= cs.(cs_ofs) /\ cs.(cs_ofs) + cs.(cs_len) <= size_slot s;
   wfd_writable : Writable s = (sc != Sglob);
   wfd_align : Align s = ws;
   wfd_offset : Addr s = (wbase_ptr sc + wrepr Uptr ofs)%R
@@ -152,19 +152,19 @@ Record wf_regptr x xr := {
     get_local pmap y = Some (Pregptr yr) -> x <> y -> xr <> yr
 }.
 
-Record wf_stkptr (x : var) (s : slot) ofs ws z (xf : var) := {
+Record wf_stkptr (x : var) (s : slot) ofs ws cs (xf : var) := {
   wfs_slot : Sv.In s Slots;
   wfs_type : is_sarr (vtype x);
-  wfs_size : wsize_size Uptr <= z.(z_len);
-  wfs_zone : 0 <= z.(z_ofs) /\ z.(z_ofs) + z.(z_len) <= size_slot s;
+  wfs_size : wsize_size Uptr <= cs.(cs_len);
+  wfs_zone : 0 <= cs.(cs_ofs) /\ cs.(cs_ofs) + cs.(cs_len) <= size_slot s;
   wfs_writable : Writable s;
   wfs_align : Align s = ws;
   wfs_align_ptr : (Uptr <= ws)%CMP;
-  wfs_offset_align : is_align (wrepr _ z.(z_ofs))%R Uptr;
+  wfs_offset_align : is_align (wrepr _ cs.(cs_ofs))%R Uptr;
   wfs_offset : Addr s = (rsp + wrepr Uptr ofs)%R;
   wfs_new : Sv.In xf pmap.(vnew);
-  wfs_distinct : forall y s' ofs' ws' z' yf,
-    get_local pmap y = Some (Pstkptr s' ofs' ws' z' yf) -> x <> y -> xf <> yf
+  wfs_distinct : forall y s' ofs' ws' cs' yf,
+    get_local pmap y = Some (Pstkptr s' ofs' ws' cs' yf) -> x <> y -> xf <> yf
 }.
 
 Definition wf_local x pk :=
@@ -188,7 +188,7 @@ Class wf_pmap := {
   wf_locals  : forall x pk, Mvar.get pmap.(locals) x = Some pk -> wf_local x pk;
   wf_vnew    : forall x pk, Mvar.get pmap.(locals) x = Some pk -> ~ Sv.In x pmap.(vnew)
 }.
-
+(*
 (* Registers (not introduced by the compiler) hold the same value in [vm1] and [vm2] *)
 Definition eq_vm (vm1 vm2:vmap) := 
   forall (x:var),
@@ -221,7 +221,7 @@ Definition wfr_WF (rmap : region_map) :=
   forall x sr,
     Mvar.get rmap.(var_region) x = Some sr ->
     wf_sub_region sr x.(vtype).
-
+*)
 (* TODO: should we raise another error in the Vword case ? Not really important *)
 (* This allows to read uniformly in words and arrays. *)
 Definition get_val_byte v off :=
@@ -230,7 +230,7 @@ Definition get_val_byte v off :=
   | Varr _ a => read a off U8
   |_ => type_error
   end.
-
+(*
 Definition sub_region_addr sr :=
   (Addr sr.(sr_region).(r_slot) + wrepr _ sr.(sr_zone).(z_ofs))%R.
 
@@ -2420,19 +2420,20 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------ *)
-
+*)
 Record h_stack_alloc_params (saparams : stack_alloc_params) :=
   {
     (* [mov_ofs] must behave as described in stack_alloc.v. *)
     mov_ofsP :
-      forall (P' : sprog) s1 e i x tag ofs w vpk s2 ins,
+      forall (P' : sprog) s1 e i x tag ofs w vpk s2 ins pofs,
         p_globs P' = [::]
         -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+        -> sem_pexpr [::] s1 ofs >>= to_pointer = ok pofs
         -> sap_mov_ofs saparams x tag vpk e ofs = Some ins
-        -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+        -> write_lval [::] x (Vword (i + pofs)) s1 = ok s2
         -> sem_i P' w s1 ins s2;
   }.
-
+(*
 Context
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams).
@@ -2643,7 +2644,7 @@ Proof.
   move=> off hmem w /=.
   by rewrite WArray.get_empty; case: ifP.
 Qed.
-
+*)
 (* Link between a reg ptr argument value [va] in the source and
    the corresponding pointer [p] in the target. [m1] is the source memory,
    [m2] is the target memory.
@@ -2709,7 +2710,7 @@ Definition wf_result m1 vargs1 vargs2 (i : option nat) vr vr' :=
   | None => vr' = vr (* no reg ptr : both values are equal *)
   | Some i => (* reg ptr : [va] is compiled to a pointer [p] that satisfies [wf_arg_pointer] *)
     exists p, vr' = Vword p /\ wf_result_pointer m1 vargs1 vargs2 i vr p
-  end.
+  end. (*
 
 Lemma get_PvarP e x : get_Pvar e = ok x -> e = Pvar x.
 Proof. by case: e => //= _ [->]. Qed.
@@ -4161,5 +4162,5 @@ Proof.
     by case: (px) hlocal.(wfr_rtype) => -[_ pxn] pxi /= -> /=.
   by apply (valid_state_Incl hincl2).
 Qed.
-
+*)
 End Section.

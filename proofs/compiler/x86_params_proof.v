@@ -45,33 +45,43 @@ Section STACK_ALLOC.
   Variable (is_regx : var -> bool) (P' : sprog).
   Hypothesis P'_globs : P'.(p_globs) = [::].
 
-  Lemma lea_ptrP s1 e i x tag ofs w s2 :
+  Lemma lea_ptrP s1 e i x tag ofs w s2 pofs :
     (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
-    -> write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
+    -> Let x := sem_pexpr [::] s1 ofs in to_pointer x = ok pofs
+    -> write_lval [::] x (Vword (i + pofs)) s1 = ok s2
     -> psem.sem_i P' w s1 (lea_ptr x e tag ofs) s2.
   Proof.
-    move=> he hx.
+    move=> he hofs hx.
     constructor.
     rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
     move: he; t_xrbindP=> _ -> /= -> /=.
+    move: hofs; t_xrbindP=> _ -> /= -> /=.
     by rewrite !zero_extend_u hx.
   Qed.
 
 End STACK_ALLOC.
 
-Lemma x86_mov_ofsP (is_regx : var -> bool) (P' : sprog) s1 e i x tag ofs w vpk s2 ins :
+Lemma is_zeroP s1 w : is_zero w -> sem_pexpr [::] s1 w >>= to_pointer = ok 0%R.
+Proof.
+  case: w => //= -[] // ws [] // [] //= /eqP ->.
+  by rewrite truncate_word_u wrepr0.
+Qed.
+
+Lemma x86_mov_ofsP (is_regx : var -> bool) (P' : sprog) s1 e i x tag ofs w vpk s2 ins pofs :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+  -> Let x := sem_pexpr [::] s1 ofs in to_pointer x = ok pofs
   -> sap_mov_ofs (x86_saparams is_regx) x tag vpk e ofs = Some ins
-  -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> write_lval [::] x (Vword (i + pofs)) s1 = ok s2
   -> psem.sem_i P' w s1 ins s2.
 Proof.
-  move=> P'_globs he.
+  move=> P'_globs he hofs.
   rewrite /x86_saparams /= /x86_mov_ofs.
   case: (mk_mov vpk).
   - move=> [<-]. by apply lea_ptrP.
-  case: eqP => [-> | _] [<-].
-  + by rewrite wrepr0 GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
+  case hz: is_zero => -[<-].
+  - move /(is_zeroP s1) : hz; rewrite hofs => -[->].
+    by rewrite GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
   by apply lea_ptrP.
 Qed.
 

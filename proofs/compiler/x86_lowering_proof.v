@@ -1744,7 +1744,7 @@ Section PROOF.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
-    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr ii Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
     have [s4' [Hs4'1 Hs4'2]] := Hc' Hc2 _ Hs3'2.
     have [s5' [Hs5'1 Hs5'2]] := Hwhile ii Hdisj _ Hs4'2.
     exists s5'; split=> //.
@@ -1765,7 +1765,7 @@ Section PROOF.
     have Hcond: x = lower_condition fv xH e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
-    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr ii Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
     exists s3'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
     exact: (sem_app Hs2'1 Hs3'1).
