@@ -1172,7 +1172,7 @@ End PROG.
 
 End Section.
 
-Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao := 
+Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) start_pos sao := 
   let add (xsr: var * wsize * Z) 
           (slp:  Mvar.t (Z * wsize) * Z) :=
     let '(stack, p) := slp in
@@ -1189,7 +1189,7 @@ Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao :=
           else Error (stk_ierror_no_var "bad stack region alignment")
         else Error (stk_ierror_no_var "bad stack alignment")
       else Error (stk_ierror_no_var "stack region overlap") in
-  Let sp := foldM add (Mvar.empty _, 0%Z) sao.(sao_slots) in
+  Let sp := foldM add (Mvar.empty _, start_pos) sao.(sao_slots) in
   let '(stack, size) := sp in
   if (size <= sao.(sao_size))%CMP then ok stack
   else Error (stk_ierror_no_var "stack size").
@@ -1348,7 +1348,9 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
-  Let stack := init_stack_layout mglob sao in
+  let ra := sao.(sao_return_address) in
+  let start_pos := if ra is RAstack _ then wsize_size Uptr else 0%Z in
+  Let stack := init_stack_layout mglob start_pos sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
   (* adding params to the map *)

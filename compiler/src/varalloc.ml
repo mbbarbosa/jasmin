@@ -372,8 +372,9 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
     
   let sao_align, sao_slots, sao_size = 
     alloc_local_stack 
-      (* FIXME should be more precise than 32 *)
-      (if ra_on_stack then 32 else 0) (Sv.elements slots) atbl in
+      (* if ra_on_stack we add some space for the return address,
+         the alignment will be automatically corrected *)
+      (if ra_on_stack then 8 else 0) (Sv.elements slots) atbl in
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
