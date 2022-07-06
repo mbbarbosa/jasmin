@@ -901,6 +901,7 @@ End LOOP.
 Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
+  ; sao_ioff: Z
   ; sao_extra_size: Z
   ; sao_max_size : Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
@@ -1349,7 +1350,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
   let ra := sao.(sao_return_address) in
-  let start_pos := if ra is RAstack _ then wsize_size Uptr else 0%Z in
+  let start_pos := sao.(sao_ioff) in 
   Let stack := init_stack_layout mglob start_pos sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
@@ -1399,6 +1400,7 @@ Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
+        sf_stk_ioff := sao.(sao_ioff);
         sf_stk_max := sao.(sao_max_size);
         sf_stk_extra_sz := sao.(sao_extra_size);
         sf_to_save := sao.(sao_to_save);

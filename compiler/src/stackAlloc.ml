@@ -127,6 +127,7 @@ let memory_analysis pp_err ~debug tbl up =
     let sao = Stack_alloc.{
         sao_align  = align;
         sao_size   = Conv.cz_of_int size;
+        sao_ioff   = Z0;
         sao_extra_size = Z0;
         sao_max_size = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
@@ -256,11 +257,11 @@ let memory_analysis pp_err ~debug tbl up =
     let convert_to_save m =
       m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_int n)
     in
-
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_extra_size = Conv.cz_of_int extra_size;
+        sao_ioff = Conv.cz_of_int (if rastack then size_of_ws Arch.reg_size else 0);
+        sao_extra_size = Conv.cz_of_int extra_size;        
         sao_max_size = Conv.cz_of_z max_size;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;

@@ -374,7 +374,7 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
     alloc_local_stack 
       (* if ra_on_stack we add some space for the return address,
          the alignment will be automatically corrected *)
-      (if ra_on_stack then 8 else 0) (Sv.elements slots) atbl in
+      (if ra_on_stack then size_of_ws pd else 0) (Sv.elements slots) atbl in
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
