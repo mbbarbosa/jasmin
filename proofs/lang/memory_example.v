@@ -762,6 +762,7 @@ Module MemoryI : MemoryT.
     - exact: ass_valid o.
     - exact: ass_align o.
     - exact: ass_above_limit o.
+    - exact: alloc_stack_ioff o.
     - exact: ass_fresh o.
     - exact: ass_root o.
     - exact: ass_limit o.

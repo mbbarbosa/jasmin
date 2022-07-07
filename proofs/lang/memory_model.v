@@ -626,6 +626,7 @@ Section SPEC.
     ass_valid     : forall p, validw m' p U8 = validw m p U8 || between (pstk + wrepr _ ioff) (sz - ioff) p U8;
     ass_align_stk : is_align pstk ws;
     ass_above_limit: wunsigned (stack_limit m) <= wunsigned pstk ∧ wunsigned pstk +  sz + Z.max 0 sz' <= wunsigned (top_stack m);
+    ass_ioff      : 0 <= ioff <= sz;                                       
     ass_fresh     : forall p s, validw m p s ->
                         (wunsigned p + wsize_size s <= wunsigned pstk \/
                          wunsigned pstk + sz <= wunsigned p)%Z;
@@ -653,6 +654,15 @@ Section SPEC.
     is_align (pstk + wrepr _ ofs)%R s = is_align (wrepr _ ofs) s.
   Proof.
     by move=> hs; apply/is_align_addE;apply: is_align_m (ass_align_stk ass).
+  Qed.
+
+  Lemma ass_add_ioff (ass:alloc_stack_spec) : 
+    wunsigned (pstk + wrepr _ ioff) = wunsigned pstk + ioff.
+  Proof.
+    have ? := ass_above_limit ass; have ? := ass_ioff ass.
+    rewrite wunsigned_add //. 
+    assert (h := wunsigned_range (top_stack m)).  assert (h' := wunsigned_range pstk). 
+    Psatz.lia.
   Qed.
 
   Lemma ass_read_old (ass:alloc_stack_spec) p s : validw m p s -> read m p s = read m' p s.
