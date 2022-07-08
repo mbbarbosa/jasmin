@@ -29,7 +29,7 @@ Lemma init_stk_stateI fex pex gd s s' :
   [/\
     escs s = escs s',
     (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd),
-    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_extra_sz) = ok (emem s'),
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_ioff) fex.(sf_stk_extra_sz) = ok (emem s'),
     (evm s').[vid pex.(sp_rsp)] = ok (pword_of_word (top_stack (emem s'))) &
     forall (x:var), x <> vid pex.(sp_rip) -> x <> vid pex.(sp_rsp) ->
               (evm s').[x] = vmap0.[x]].

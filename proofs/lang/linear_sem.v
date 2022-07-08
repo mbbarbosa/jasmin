@@ -76,11 +76,8 @@ Definition find_instr (s:lstate) :=
   else None.
 
 Definition get_label_after_pc (s:lstate) :=
-  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
-    let body := lfd_body fd in
-    if oseq.onth body s.(lpc).+1 is Some i then
-      if li_i i is Llabel l then ok l
-      else type_error
+  if find_instr (setpc s s.(lpc).+1) is Some i then
+    if li_i i is Llabel l then ok l
     else type_error
   else type_error.
 

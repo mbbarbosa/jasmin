@@ -472,7 +472,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 (*                       ++ MkLI ii (LstoreLabel ra lret) *)
 (*                       :: lstore ii rspi z Uptr glob_ra *)
                        ++ MkLI ii (Lcall lcall)
-                    (*   :: MkLI ii (Llabel lret) *)
+                       :: MkLI ii (Llabel lret)
                        :: after
                        ++ lc
                )
